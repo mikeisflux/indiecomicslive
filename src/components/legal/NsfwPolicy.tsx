@@ -58,16 +58,6 @@ export default function NsfwPolicy() {
         Suspected CSAM is reported to NCMEC immediately and to law enforcement
         as appropriate.
       </p>
-
-      <h2>7. Compliance Notice</h2>
-      <p>
-        Several U.S. states (including Texas, Louisiana, Utah, Mississippi,
-        Virginia, North Carolina, Indiana, and others) and the United
-        Kingdom (Online Safety Act) require ID-based age verification for
-        commercial adult sites. We comply with applicable law in each
-        jurisdiction. Where required, ID-based age verification will be
-        enabled for users in that jurisdiction.
-      </p>
     </Doc>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getAdminUserOrNull, logAudit } from "@/lib/admin";
 
 const Body = z.object({
   decision: z.enum(["approve", "reject"]),
@@ -9,23 +9,12 @@ const Body = z.object({
   rejectionReason: z.string().max(500).optional(),
 });
 
-async function isAdmin(userId: string): Promise<boolean> {
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  return u?.role === "admin" || u?.role === "super_admin";
-}
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  if (!(await isAdmin(session.user.id))) {
+  const me = await getAdminUserOrNull();
+  if (!me) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -47,7 +36,7 @@ export async function POST(
         data: {
           status: "approved",
           reviewedAt: new Date(),
-          reviewedById: session.user.id,
+          reviewedById: me.id,
           reviewerNotes: parsed.data.reviewerNotes,
         },
       });
@@ -60,7 +49,7 @@ export async function POST(
         update: {
           approved: true,
           approvedAt: new Date(),
-          approvedById: session.user.id,
+          approvedById: me.id,
           storeName: app.storeName,
           bio: app.storeBio,
         },
@@ -70,9 +59,16 @@ export async function POST(
           bio: app.storeBio,
           approved: true,
           approvedAt: new Date(),
-          approvedById: session.user.id,
+          approvedById: me.id,
         },
       });
+    });
+    await logAudit({
+      actorId: me.id,
+      action: "seller_application.approve",
+      targetKind: "seller_application",
+      targetId: app.id,
+      metadata: { sellerUserId: app.userId, notes: parsed.data.reviewerNotes },
     });
     return NextResponse.json({ ok: true, status: "approved" });
   }
@@ -82,9 +78,20 @@ export async function POST(
     data: {
       status: "rejected",
       reviewedAt: new Date(),
-      reviewedById: session.user.id,
+      reviewedById: me.id,
       reviewerNotes: parsed.data.reviewerNotes,
       rejectionReason: parsed.data.rejectionReason ?? "manual_rejection",
+    },
+  });
+  await logAudit({
+    actorId: me.id,
+    action: "seller_application.reject",
+    targetKind: "seller_application",
+    targetId: app.id,
+    metadata: {
+      sellerUserId: app.userId,
+      reason: parsed.data.rejectionReason,
+      notes: parsed.data.reviewerNotes,
     },
   });
 

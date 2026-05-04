@@ -29,9 +29,6 @@ export default function AgeGate() {
           confirm you are 18 or older and that adult content is legal in your
           jurisdiction.
         </p>
-        <p className="mt-2 text-xs text-paper/50">
-          Full ID-based age verification is required before bidding.
-        </p>
         <div className="mt-6 flex flex-col gap-2">
           <button
             onClick={confirm}

@@ -37,7 +37,6 @@ This corporate structure is reflected throughout the legal pages (`/legal/*`) an
 prisma/
   schema.prisma                       # User, Account, VerificationToken,
                                       # Seller, SellerApplication,
-                                      # IDVerification (Shufti),
                                       # PaymentCloudBankAccount (encrypted),
                                       # SellerChargebackCard, IPBlocklist,
                                       # UserAddress, Show, Lot, Bid, Order,
@@ -209,6 +208,36 @@ When you materially change any of these, bump:
 - `lastUpdated` in `src/lib/legal.ts`
 - `AGREEMENT_VERSION` in `src/app/api/seller/applications/route.ts` so applicants re-prompt
 
+## Admin section (`/admin`)
+
+Role-gated control center. Only users with role `admin` or `super_admin` can access; everyone else gets redirected.
+
+| Page | What it does |
+|---|---|
+| `/admin` | Dashboard — pending applications, live shows, GMV last 24h/7d, paid orders, refunds, chargebacks, locked users. |
+| `/admin/seller-applications` | List + filter. Detail view shows identity, business, social links, prior platforms, bank, chargeback card, agreements; one-click approve/reject with audit-logged reviewer notes. |
+| `/admin/sellers` | All approved sellers, quick stats (shows hosted, sold orders), account state. |
+| `/admin/users` | Search by email/handle/name, filter by role/locked/deleted. Detail page exposes ban/unban, lock/unlock, chat-mute/unmute, role change, IP-block-from-last-known-IP. Every action audit-logged. |
+| `/admin/shows` | All shows with status filter, click through to seller. |
+| `/admin/orders` | List + status filter + search by id/email. Detail page exposes retry-charge (NMI MIT), full/partial refund (NMI), void, mark-shipped, mark-delivered, cancel. |
+| `/admin/chargebacks` | Chargeback rate (30d), sellers ranked by chargeback count, full chargeback + refund tables. |
+| `/admin/ip-blocks` | Manual IP/CIDR blocklist with optional expiry. |
+| `/admin/audit` | Full audit log with actor / target / action filters. |
+| `/admin/settings` | Read-only view of env-driven configuration (NMI, Ant Media, R2, Auth, WS). |
+
+### Bootstrapping the first admin
+
+```bash
+# After first sign-in, promote yourself with the CLI:
+npx tsx scripts/grant-admin.ts you@yourdomain.com super
+```
+
+Modes: `admin`, `super` (super_admin), `revoke` (viewer). After the first super_admin exists, promote others through `/admin/users/[id]` → Role dropdown.
+
+### Audit log
+
+Every privileged action writes a row to `audit_logs` via `logAudit(...)` in `src/lib/admin.ts`. Append-only; we never `update` or `delete` from app code.
+
 ## SEO & branding
 
 The site is positioned as **"the Whatnot alternative for adult comics & cards"**. Metadata, OpenGraph, Twitter cards, and JSON-LD (Organization, WebSite, FAQ, NGO) all carry that line plus the **Divinity Comics Inc.** parent.
@@ -228,16 +257,12 @@ The site is positioned as **"the Whatnot alternative for adult comics & cards"**
 - Moderation tools (chat ban actions, mute, content reporting UI — schema is ready)
 - Search / categories / following feed UI (schema ready)
 - Bulk lot import (CSV)
-- Shufti / actual ID-verification provider integration (schema is ready; placeholder)
-- ID-based age verification for buyers (deliberately deferred per user direction)
 
 ## Important notes
 
 **Card data never touches our servers.** Card tokenization happens in the bidder's browser via PaymentCloud's CollectJS. We hold a vault id, not a card number. PCI scope = SAQ-A.
 
 **Bank-account PII is encrypted at rest.** AES-256-GCM with a per-deployment 32-byte key. Plaintext never lives in the DB.
-
-**Age verification — buyer side is deliberately deferred.** The cookie 18+ gate is a soft check. Several US states (TX, LA, UT, VA, …) and the UK now require ID verification for adult sites. Wire up a provider (Persona, Yoti, AgeID) before launching publicly in those jurisdictions.
 
 **CDN / host AUPs.** Cloudflare R2 + Cloudflare CDN are fine for adult per their AUPs. **Do NOT use Cloudflare Stream** — its AUP prohibits adult content.
 

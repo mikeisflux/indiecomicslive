@@ -53,15 +53,6 @@ enum SellerApplicationStatus {
   rejected
 }
 
-enum IDVerificationStatus {
-  pending
-  processing
-  verified
-  declined
-  expired
-  cancelled
-}
-
 // User shape follows Auth.js v5 + Prisma adapter expectations
 // (id, name, email, emailVerified, image). Custom fields live alongside.
 // Pattern + extra fields ported from indiecrowdfund_2.0/prisma/schema/user.prisma.
@@ -115,7 +106,6 @@ model User {
   accounts          Account[]
   seller            Seller?
   sellerApplication SellerApplication?
-  idVerifications   IDVerification[]
   bankAccount       PaymentCloudBankAccount?
   chargebackCard    SellerChargebackCard?
   shows             Show[]              @relation("SellerShows")
@@ -267,40 +257,6 @@ model SellerApplication {
   @@index([status])
   @@index([userId])
   @@map("seller_applications")
-}
-
-// ID verification record. Pattern from indiecrowdfund (Shufti); we store
-// the provider reference and decision outcomes so admins can audit.
-// Used for SELLERS only (KYC for payouts), not for buyers/age-gating.
-model IDVerification {
-  id     String @id @default(uuid()) @db.Uuid
-  userId String @map("user_id") @db.Uuid
-
-  provider          String  @default("shufti")
-  providerReference String  @unique @map("provider_reference")
-  verificationUrl   String? @map("verification_url")
-
-  status IDVerificationStatus @default(pending)
-
-  isDocumentValid Boolean? @map("is_document_valid")
-  isFaceMatch     Boolean? @map("is_face_match")
-  documentType    String?  @map("document_type")
-  documentCountry String?  @map("document_country")
-
-  declineReason String?  @map("decline_reason")
-  declineCodes  String[] @map("decline_codes")
-
-  rawResponse Json? @map("raw_response")
-
-  requestedAt DateTime  @default(now()) @map("requested_at")
-  completedAt DateTime? @map("completed_at")
-  expiresAt   DateTime? @map("expires_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
-  @@map("id_verifications")
 }
 
 // Encrypted at rest via src/lib/encryption.ts (AES-256-GCM,
@@ -518,4 +474,22 @@ model Follow {
 
   @@id([followerId, sellerId])
   @@map("follows")
+}
+
+// Admin action audit log. Every privileged action that touches a
+// user, order, or seller-facing setting writes one row. Append-only;
+// no updates / deletes from app code.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  action    String
+  targetKind String? @map("target_kind")
+  targetId   String? @map("target_id")
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([targetKind, targetId])
+  @@map("audit_logs")
 }
