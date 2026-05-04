@@ -91,28 +91,41 @@ export type PublishUrls = {
   webSocketUrl: string;
   /** Browser URL for the bundled WebRTC publish page (fallback). */
   publishPageUrl: string;
-  /** RTMP URL for OBS / external encoders (sellers who prefer OBS). */
-  rtmpUrl: string;
+  /** OBS "Server" / "URL" field — bare app endpoint, no stream id. */
+  rtmpServerUrl: string;
+  /** OBS "Stream Key" field — `<streamId>?token=<jwt>`. */
+  rtmpStreamKey: string;
+  /** Convenience: the full single-string RTMP URL for tools that take one. */
+  rtmpFullUrl: string;
   /** Stream id and signed token. */
   streamId: string;
   publishToken: string;
+  /** When the JWT publish token expires (seconds since epoch). */
+  publishTokenExpSec: number;
 };
 
 export async function buildPublishUrls(
   config: AntMediaConfig,
   streamId: string,
 ): Promise<PublishUrls> {
+  const ttl = 60 * 60 * 4;
   const publishToken = await signStreamToken({
     config,
     streamId,
     type: "publish",
+    ttlSeconds: ttl,
   });
+  const rtmpServerUrl = `rtmp://${config.host}/${config.app}`;
+  const rtmpStreamKey = `${streamId}?token=${publishToken}`;
   return {
     webSocketUrl: `${baseUrl(config, "wss")}/websocket`,
     publishPageUrl: `${baseUrl(config, "https")}/publish.html?id=${encodeURIComponent(streamId)}&token=${encodeURIComponent(publishToken)}`,
-    rtmpUrl: `rtmp://${config.host}/${config.app}/${streamId}?token=${publishToken}`,
+    rtmpServerUrl,
+    rtmpStreamKey,
+    rtmpFullUrl: `${rtmpServerUrl}/${rtmpStreamKey}`,
     streamId,
     publishToken,
+    publishTokenExpSec: Math.floor(Date.now() / 1000) + ttl,
   };
 }
 

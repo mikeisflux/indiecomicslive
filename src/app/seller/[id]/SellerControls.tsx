@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import LotManager from "./LotManager";
+import ObsCredentials from "@/components/ObsCredentials";
 
 const AntMediaPublisher = dynamic(
   () => import("@/components/AntMediaPublisher"),
@@ -27,18 +28,30 @@ type Props = {
 };
 
 export default function SellerControls({ show, initialLots }: Props) {
-  const [tab, setTab] = useState<"broadcast" | "lots">("broadcast");
+  const [tab, setTab] = useState<"browser" | "obs" | "lots">("browser");
 
   return (
     <div className="space-y-6">
-      <nav className="flex gap-2 text-sm">
+      <nav className="flex flex-wrap gap-2 text-sm">
         <button
-          onClick={() => setTab("broadcast")}
+          onClick={() => setTab("browser")}
           className={`rounded-full px-4 py-1.5 ${
-            tab === "broadcast" ? "bg-accent text-white" : "border border-white/10"
+            tab === "browser"
+              ? "bg-accent text-white"
+              : "border border-white/10"
           }`}
         >
-          Broadcast
+          Browser broadcast
+        </button>
+        <button
+          onClick={() => setTab("obs")}
+          className={`rounded-full px-4 py-1.5 ${
+            tab === "obs"
+              ? "bg-accent text-white"
+              : "border border-white/10"
+          }`}
+        >
+          Stream from OBS
         </button>
         <button
           onClick={() => setTab("lots")}
@@ -50,7 +63,25 @@ export default function SellerControls({ show, initialLots }: Props) {
         </button>
       </nav>
 
-      {tab === "broadcast" && <AntMediaPublisher showId={show.id} />}
+      {tab === "browser" && (
+        <section className="space-y-3">
+          <p className="text-xs text-paper/60">
+            One-click WebRTC broadcast straight from your browser. Allow
+            camera + mic when prompted. Sub-second latency.
+          </p>
+          <AntMediaPublisher showId={show.id} />
+        </section>
+      )}
+
+      {tab === "obs" && (
+        <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-paper/60">
+            Stream from OBS / external encoder
+          </h3>
+          <ObsCredentials showId={show.id} />
+        </section>
+      )}
+
       {tab === "lots" && (
         <LotManager showId={show.id} initialLots={initialLots} />
       )}

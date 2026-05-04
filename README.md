@@ -178,6 +178,23 @@ public/
 The auto-DQ thresholds (3+ unfulfilled / 1yr past delivery) are
 ported from `indiecrowdfund_2.0/src/components/legal/creator-agreement.tsx`.
 
+## How sellers stream
+
+Every show gets `streamId = show.id` and a JWT publish token. Sellers go live via either tab on `/seller/[id]`:
+
+**Browser broadcast** (one-click WebRTC)
+- `AntMediaPublisher.tsx` fetches `/api/shows/[id]/publish-token`, loads `webrtc_adaptor.js` from the Ant Media host, calls `getUserMedia` for cam+mic, opens a WebSocket to `wss://<host>:<port>/<app>/websocket`, and publishes via WebRTC.
+- Sub-second latency end to end. Best for a one-person live show with a webcam.
+
+**Stream from OBS** (or any RTMP encoder)
+- `ObsCredentials.tsx` renders the credentials inline:
+  - **Server / URL**: `rtmp://<host>/<app>` (paste into OBS &rarr; Settings &rarr; Stream &rarr; Server)
+  - **Stream Key**: `<show-id>?token=<jwt>` (paste into OBS &rarr; Stream Key)
+- Reveal/copy/rotate buttons; token expiry shown.
+- Slightly higher latency (~2-5s through the RTMP&rarr;WebRTC bridge) but supports multi-cam, lower-thirds, NDI sources, etc.
+
+The Ant Media stream webhook (`liveStreamStarted` / `liveStreamEnded`) flips `show.status` automatically once frames start landing — that's what surfaces the show under "Live now" on the home page.
+
 ## Auction engine
 
 `src/lib/auction.ts`:
