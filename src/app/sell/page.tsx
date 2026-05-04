@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title:
@@ -82,10 +83,10 @@ export default function SellLanding() {
 
         <div className="mt-7 flex flex-wrap gap-3">
           <Link
-            href="/seller"
+            href="/seller/apply"
             className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-white"
           >
-            Open seller dashboard
+            Apply to sell
           </Link>
           <a
             href="#why"
@@ -146,13 +147,14 @@ export default function SellLanding() {
 
         <section className="mt-12 text-center">
           <Link
-            href="/seller"
+            href="/seller/apply"
             className="inline-block rounded-full bg-accent px-7 py-3 text-sm font-bold text-white"
           >
-            Open seller dashboard
+            Apply to sell
           </Link>
         </section>
       </main>
+      <Footer />
     </>
   );
 }

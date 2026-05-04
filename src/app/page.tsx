@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import Footer from "@/components/Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -134,10 +135,7 @@ export default async function Home() {
         )}
       </section>
 
-      <footer className="border-t border-white/5 px-4 py-8 text-center text-xs text-paper/40">
-        Indie Comics Live · 18+ · Adult-friendly Whatnot alternative for
-        comics and cards
-      </footer>
+      <Footer />
     </main>
   );
 }
