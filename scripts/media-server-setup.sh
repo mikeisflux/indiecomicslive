@@ -11,7 +11,9 @@
 # Single command:
 #   curl -fsSL https://raw.githubusercontent.com/mikeisflux/indiecomicslive/claude/whatnot-clone-exploration-VxA1W/scripts/media-server-setup.sh | sudo bash
 # ============================================================================
-set -euo pipefail
+set -uo pipefail
+# Note: 'set -e' is intentionally NOT enabled. Glob no-matches and
+# best-effort cleanups would kill the script silently on Ubuntu.
 
 PUBLIC_IPV4="178.156.200.171"
 STREAM_HOST="stream.indiecomicslive.com"
