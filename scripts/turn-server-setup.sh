@@ -40,13 +40,17 @@ log() { echo -e "\n\033[1;36m[turn-setup]\033[0m $*"; }
 # ---------------------------------------------------------------------------
 log "stopping any existing turnserver"
 
-# Stop + disable every unit that could respawn it
+# Mask + stop every unit that could respawn it. mask symlinks the unit
+# to /dev/null so even Restart= directives + socket activation can't
+# bring it back. We unmask coturn just before we start it ourselves at
+# the end of the script.
 for u in coturn.service turnserver.service turn.service coturn.socket; do
   systemctl stop    "$u" 2>/dev/null || true
   systemctl disable "$u" 2>/dev/null || true
+  systemctl mask    "$u" 2>/dev/null || true
 done
 
-# Make sure psmisc (fuser) is available for the port-based fallback
+# Make sure psmisc (fuser) is available
 command -v fuser >/dev/null 2>&1 || apt-get install -y -qq psmisc >/dev/null 2>&1 || true
 
 # Three rounds of TERM, then SIGKILL, then fuser -k on the bound ports.
@@ -62,11 +66,11 @@ for port in 3478 5349; do
   fuser -k -n udp "$port" 2>/dev/null || true
   fuser -k -n tcp "$port" 2>/dev/null || true
 done
-sleep 1
+sleep 2
 
 # Final verification
 if ss -tulnH 2>/dev/null | awk '{print $5}' | grep -E ':(3478|5349)$' | grep -q .; then
-  echo "ERROR: ports 3478/5349 still bound after kill sequence:"
+  echo "ERROR: ports 3478/5349 still bound after kill + mask:"
   ss -tulnp | grep -E ':3478|:5349'
   echo
   echo "Look for unusual auto-restart sources:"
@@ -248,6 +252,9 @@ fi
 # 11. Start + verify
 # ---------------------------------------------------------------------------
 systemctl daemon-reload
+# Unmask now that we want to start it ourselves
+systemctl unmask coturn.service 2>/dev/null || true
+systemctl unmask coturn.socket  2>/dev/null || true
 systemctl enable coturn >/dev/null 2>&1
 systemctl restart coturn
 sleep 3
