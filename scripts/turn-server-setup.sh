@@ -36,20 +36,42 @@ SECRETS_DIR="/root/icl-secrets"
 log() { echo -e "\n\033[1;36m[turn-setup]\033[0m $*"; }
 
 # ---------------------------------------------------------------------------
-# 1. Kill the old streamlick turnserver if it's running outside systemd
+# 1. Kill any existing turnserver — aggressively
 # ---------------------------------------------------------------------------
 log "stopping any existing turnserver"
-systemctl stop coturn 2>/dev/null || true
-# kill any manually-launched turnserver (the streamlick legacy)
-if pgrep -f '/usr/bin/turnserver' >/dev/null 2>&1; then
-  pkill -f '/usr/bin/turnserver' || true
-  sleep 2
-fi
 
-# Confirm ports are free
-if ss -tulnH 'sport = :3478 or sport = :5349' 2>/dev/null | grep -q .; then
-  echo "ERROR: 3478/5349 still bound. Stragglers:"
+# Stop + disable every unit that could respawn it
+for u in coturn.service turnserver.service turn.service coturn.socket; do
+  systemctl stop    "$u" 2>/dev/null || true
+  systemctl disable "$u" 2>/dev/null || true
+done
+
+# Make sure psmisc (fuser) is available for the port-based fallback
+command -v fuser >/dev/null 2>&1 || apt-get install -y -qq psmisc >/dev/null 2>&1 || true
+
+# Three rounds of TERM, then SIGKILL, then fuser -k on the bound ports.
+for round in 1 2 3; do
+  if ! pgrep -f turnserver >/dev/null 2>&1; then break; fi
+  pkill -TERM -f turnserver 2>/dev/null || true
+  sleep 2
+done
+pkill -KILL -f turnserver 2>/dev/null || true
+sleep 1
+
+for port in 3478 5349; do
+  fuser -k -n udp "$port" 2>/dev/null || true
+  fuser -k -n tcp "$port" 2>/dev/null || true
+done
+sleep 1
+
+# Final verification
+if ss -tulnH 2>/dev/null | awk '{print $5}' | grep -E ':(3478|5349)$' | grep -q .; then
+  echo "ERROR: ports 3478/5349 still bound after kill sequence:"
   ss -tulnp | grep -E ':3478|:5349'
+  echo
+  echo "Look for unusual auto-restart sources:"
+  systemctl list-units --no-legend --all | grep -iE 'turn|coturn' || true
+  ls /etc/init.d/ 2>/dev/null | grep -iE 'turn|coturn' || true
   exit 1
 fi
 log "ports 3478 + 5349 are free"
