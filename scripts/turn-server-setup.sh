@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+# ============================================================================
+# scripts/turn-server-setup.sh
+#
+# End-to-end TURN server (coturn) setup for the indiecomicslive.com TURN
+# box. Run as root on the TURN box. Idempotent — safe to re-run.
+#
+# What it does:
+#   1. Kills the old streamlick turnserver process if running outside systemd
+#   2. Backs up the existing /etc/turnserver.conf
+#   3. Installs coturn + certbot if missing
+#   4. Verifies DNS is pointing at this box
+#   5. Obtains a Let's Encrypt cert via certbot standalone
+#   6. Generates a shared secret (or reuses the saved one)
+#   7. Writes /etc/turnserver.conf with use-auth-secret mode
+#   8. Configures cert permissions + auto-renewal reload hook
+#   9. Opens ufw ports
+#  10. Starts + enables coturn
+#  11. Prints the shared secret for pasting into the app .env.local
+#
+# Single command to run on the TURN box:
+#   curl -fsSL https://raw.githubusercontent.com/mikeisflux/indiecomicslive/claude/whatnot-clone-exploration-VxA1W/scripts/turn-server-setup.sh | sudo bash
+# ============================================================================
+set -euo pipefail
+
+# ---- Hardcoded for the indiecomicslive.com TURN box ----
+PUBLIC_IPV4="178.156.222.91"
+PUBLIC_IPV6="2a01:4ff:f0:5935::1"
+TURN_HOST="turn.indiecomicslive.com"
+REALM="indiecomicslive.com"
+ADMIN_EMAIL="mikeisflux@indiecomicslive.com"
+SECRETS_DIR="/root/icl-secrets"
+
+[ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
+
+log() { echo -e "\n\033[1;36m[turn-setup]\033[0m $*"; }
+
+# ---------------------------------------------------------------------------
+# 1. Kill the old streamlick turnserver if it's running outside systemd
+# ---------------------------------------------------------------------------
+log "stopping any existing turnserver"
+systemctl stop coturn 2>/dev/null || true
+# kill any manually-launched turnserver (the streamlick legacy)
+if pgrep -f '/usr/bin/turnserver' >/dev/null 2>&1; then
+  pkill -f '/usr/bin/turnserver' || true
+  sleep 2
+fi
+
+# Confirm ports are free
+if ss -tulnH 'sport = :3478 or sport = :5349' 2>/dev/null | grep -q .; then
+  echo "ERROR: 3478/5349 still bound. Stragglers:"
+  ss -tulnp | grep -E ':3478|:5349'
+  exit 1
+fi
+log "ports 3478 + 5349 are free"
+
+# ---------------------------------------------------------------------------
+# 2. Backup existing config
+# ---------------------------------------------------------------------------
+if [ -f /etc/turnserver.conf ] && [ ! -f /etc/turnserver.conf.streamlick.bak ]; then
+  cp /etc/turnserver.conf /etc/turnserver.conf.streamlick.bak
+  log "backed up old config to /etc/turnserver.conf.streamlick.bak"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Install coturn + certbot if missing
+# ---------------------------------------------------------------------------
+export DEBIAN_FRONTEND=noninteractive
+if ! command -v turnserver >/dev/null 2>&1 || ! command -v certbot >/dev/null 2>&1; then
+  log "installing coturn + certbot + dnsutils"
+  apt-get update -y
+  apt-get install -y coturn certbot dnsutils ufw openssl
+fi
+
+# ---------------------------------------------------------------------------
+# 4. DNS check — bail clearly if turn.indiecomicslive.com isn't pointing here
+# ---------------------------------------------------------------------------
+log "checking DNS for $TURN_HOST"
+RESOLVED_V4="$(dig +short -t A   "$TURN_HOST" @1.1.1.1 | tail -1)"
+RESOLVED_V6="$(dig +short -t AAAA "$TURN_HOST" @1.1.1.1 | tail -1)"
+
+if [ "$RESOLVED_V4" != "$PUBLIC_IPV4" ]; then
+  cat <<EOF >&2
+
+ERROR: DNS not pointing at this box yet.
+
+  $TURN_HOST  A     resolves to: '$RESOLVED_V4'
+                    expected:    '$PUBLIC_IPV4'
+
+Set these records in your DNS provider, wait 1–2 minutes, re-run this script:
+
+  A    $TURN_HOST   $PUBLIC_IPV4
+  AAAA $TURN_HOST   $PUBLIC_IPV6
+
+EOF
+  exit 1
+fi
+log "DNS A record OK"
+[ -n "$RESOLVED_V6" ] && log "DNS AAAA record: $RESOLVED_V6"
+
+# ---------------------------------------------------------------------------
+# 5. Get cert (skip if already issued)
+# ---------------------------------------------------------------------------
+if [ ! -f "/etc/letsencrypt/live/$TURN_HOST/fullchain.pem" ]; then
+  log "obtaining Let's Encrypt cert via standalone (port 80 must be free)"
+  ufw allow 80/tcp >/dev/null 2>&1 || true
+  certbot certonly --standalone --agree-tos --non-interactive \
+    --preferred-challenges http \
+    -m "$ADMIN_EMAIL" -d "$TURN_HOST"
+else
+  log "cert already exists at /etc/letsencrypt/live/$TURN_HOST/"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Cert permissions for the turnserver user
+# ---------------------------------------------------------------------------
+chmod 755 /etc/letsencrypt /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
+chown -R turnserver:turnserver \
+  "/etc/letsencrypt/live/$TURN_HOST" \
+  "/etc/letsencrypt/archive/$TURN_HOST" 2>/dev/null || true
+
+# Auto-renewal hook: re-fix perms + reload coturn after every renewal
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+cat >/etc/letsencrypt/renewal-hooks/deploy/coturn-reload.sh <<'EOF'
+#!/bin/sh
+chown -R turnserver:turnserver /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null
+systemctl reload coturn 2>/dev/null || systemctl restart coturn
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/coturn-reload.sh
+
+# ---------------------------------------------------------------------------
+# 7. Shared secret (generate once, reuse on re-run)
+# ---------------------------------------------------------------------------
+mkdir -p "$SECRETS_DIR"
+chmod 700 "$SECRETS_DIR"
+if [ ! -s "$SECRETS_DIR/turn-shared-secret" ]; then
+  openssl rand -base64 32 > "$SECRETS_DIR/turn-shared-secret"
+  chmod 600 "$SECRETS_DIR/turn-shared-secret"
+  log "generated new shared secret at $SECRETS_DIR/turn-shared-secret"
+else
+  log "reusing shared secret at $SECRETS_DIR/turn-shared-secret"
+fi
+TURN_SHARED_SECRET="$(cat "$SECRETS_DIR/turn-shared-secret")"
+
+# ---------------------------------------------------------------------------
+# 8. Write /etc/turnserver.conf
+# ---------------------------------------------------------------------------
+log "writing /etc/turnserver.conf"
+cat >/etc/turnserver.conf <<EOF
+# /etc/turnserver.conf  —  Indie Comics Live
+# Managed by scripts/turn-server-setup.sh — re-run that script to regenerate.
+
+# Network
+listening-port=3478
+tls-listening-port=5349
+
+# coturn binds 0.0.0.0 + :: by default; advertise the public IPs so
+# clients receive reachable candidates.
+relay-ip=$PUBLIC_IPV4
+external-ip=$PUBLIC_IPV4
+relay-ip=$PUBLIC_IPV6
+external-ip=$PUBLIC_IPV6
+
+# Auth — REST-API / use-auth-secret pattern.
+# This MUST match TURN_SHARED_SECRET in the indiecomicslive .env.
+use-auth-secret
+static-auth-secret=$TURN_SHARED_SECRET
+realm=$REALM
+
+# Performance & safety
+fingerprint
+no-multicast-peers
+no-loopback-peers
+no-tcp-relay
+no-cli
+total-quota=200
+user-quota=50
+stale-nonce=600
+
+# Relay UDP port range (open these in firewall — the script does it)
+min-port=49152
+max-port=65535
+
+# TLS
+cert=/etc/letsencrypt/live/$TURN_HOST/fullchain.pem
+pkey=/etc/letsencrypt/live/$TURN_HOST/privkey.pem
+
+# Logs
+log-file=/var/log/coturn/turn.log
+simple-log
+EOF
+
+mkdir -p /var/log/coturn
+chown turnserver:turnserver /var/log/coturn
+
+# Debian's default coturn package ships disabled via /etc/default/coturn
+echo "TURNSERVER_ENABLED=1" > /etc/default/coturn
+
+# ---------------------------------------------------------------------------
+# 9. Firewall
+# ---------------------------------------------------------------------------
+log "configuring ufw"
+ufw allow 22/tcp                  >/dev/null 2>&1 || true
+ufw allow 80/tcp                  >/dev/null 2>&1 || true   # certbot renewal
+ufw allow 3478/udp                >/dev/null 2>&1 || true
+ufw allow 3478/tcp                >/dev/null 2>&1 || true
+ufw allow 5349/udp                >/dev/null 2>&1 || true
+ufw allow 5349/tcp                >/dev/null 2>&1 || true
+ufw allow 49152:65535/udp         >/dev/null 2>&1 || true
+ufw --force enable                >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# 10. Disable any legacy auto-launch (rc.local / cron)
+# ---------------------------------------------------------------------------
+if grep -lE 'turnserver' /etc/rc.local 2>/dev/null | grep -q .; then
+  log "stripping turnserver from /etc/rc.local"
+  sed -i '/turnserver/d' /etc/rc.local
+fi
+LEGACY_CRON=$(crontab -l 2>/dev/null | grep -i turnserver || true)
+if [ -n "$LEGACY_CRON" ]; then
+  log "stripping turnserver from root crontab"
+  crontab -l 2>/dev/null | grep -vi turnserver | crontab -
+fi
+
+# ---------------------------------------------------------------------------
+# 11. Start + verify
+# ---------------------------------------------------------------------------
+systemctl daemon-reload
+systemctl enable coturn >/dev/null 2>&1
+systemctl restart coturn
+sleep 3
+
+if ! systemctl is-active --quiet coturn; then
+  log "coturn FAILED to start"
+  systemctl status coturn --no-pager || true
+  journalctl -u coturn -n 50 --no-pager || true
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Output — what to copy into the app .env.local
+# ---------------------------------------------------------------------------
+cat <<EOF
+
+
+================================================================
+  TURN server is up — $TURN_HOST
+================================================================
+
+Listening sockets (3478 + 5349, UDP+TCP, IPv4+IPv6):
+
+$(ss -tulnp 2>/dev/null | grep -E ':3478|:5349' | head -12)
+
+Paste these into /opt/indiecomicslive/.env.local on the app server:
+
+TURN_HOST=$TURN_HOST
+TURN_PORT=3478
+TURN_TLS_PORT=5349
+TURN_REALM=$REALM
+TURN_SHARED_SECRET=$TURN_SHARED_SECRET
+TURN_TTL_SECONDS=21600
+
+Saved at:  $SECRETS_DIR/turn-shared-secret  (chmod 600)
+
+Verify externally — from another box (your laptop):
+
+  EXP=\$(($(date +%s) + 3600))
+  USER="\$EXP:test"
+  PASS=\$(echo -n "\$USER" | openssl dgst -sha1 -hmac "$TURN_SHARED_SECRET" -binary | base64)
+  turnutils_uclient -v -u "\$USER" -w "\$PASS" -p 3478 $TURN_HOST
+
+Then visit https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
+with TURN URL = turn:$TURN_HOST:3478?transport=udp,
+plus the same username/password — confirm a 'relay' candidate appears.
+
+EOF

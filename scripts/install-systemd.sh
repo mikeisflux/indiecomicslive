@@ -14,7 +14,7 @@ fi
 
 APP_DIR="${APP_DIR:-/opt/indiecomicslive}"
 APP_HOST="${APP_HOST:-indiecomicslive.com}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-trust@indiecomicslive.com}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-mikeisflux@indiecomicslive.com}"
 
 log() { echo -e "\n\033[1;33m[install-systemd]\033[0m $*"; }
 
