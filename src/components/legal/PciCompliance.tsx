@@ -51,7 +51,7 @@ export default function PciCompliance() {
       <h2>6. Reporting Security Issues</h2>
       <p>
         Email{" "}
-        <a href="mailto:trust@indiecomics.live">trust@indiecomics.live</a>{" "}
+        <a href="mailto:trust@indiecomicslive.com">trust@indiecomicslive.com</a>{" "}
         with reproduction steps. Please don&rsquo;t test against live data.
       </p>
     </Doc>

@@ -28,7 +28,7 @@ export default function RefundPolicy() {
       <ol className="list-decimal pl-6">
         <li>Open the order on /orders/[id];</li>
         <li>Use &ldquo;Request refund&rdquo; (coming soon) or email{" "}
-          <a href="mailto:support@indiecomics.live">support@indiecomics.live</a>;</li>
+          <a href="mailto:support@indiecomicslive.com">support@indiecomicslive.com</a>;</li>
         <li>Include order ID, photos of the item if there&rsquo;s a defect, and a brief description.</li>
       </ol>
 

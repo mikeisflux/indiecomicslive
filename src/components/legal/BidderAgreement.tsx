@@ -75,7 +75,7 @@ export default function BidderAgreement() {
       <h2>8. Contact</h2>
       <p>
         Questions:{" "}
-        <a href="mailto:support@indiecomics.live">support@indiecomics.live</a>
+        <a href="mailto:support@indiecomicslive.com">support@indiecomicslive.com</a>
       </p>
     </Doc>
   );

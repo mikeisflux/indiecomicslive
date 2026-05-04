@@ -7,7 +7,7 @@ reversible until Phase 4 (delete).
 ## Before you start
 
 - SSH to the TURN box.
-- Target hostname (e.g. `turn.indiecomics.live`).
+- Target hostname (e.g. `turn.indiecomicslive.com`).
 - DNS access for that hostname.
 - SSL cert for that hostname (Let&rsquo;s Encrypt is fine).
 - A 32+ char `TURN_SHARED_SECRET` (matches what&rsquo;s in the app `.env`).
@@ -75,7 +75,7 @@ external-ip=<public-ipv4>
 # This MUST match TURN_SHARED_SECRET in the indiecomicslive .env.
 use-auth-secret
 static-auth-secret=<your TURN_SHARED_SECRET>
-realm=indiecomics.live
+realm=indiecomicslive.com
 
 # Performance & safety
 fingerprint
@@ -91,9 +91,9 @@ stale-nonce=600
 min-port=49152
 max-port=65535
 
-# TLS — point at the cert+key for turn.indiecomics.live
-cert=/etc/letsencrypt/live/turn.indiecomics.live/fullchain.pem
-pkey=/etc/letsencrypt/live/turn.indiecomics.live/privkey.pem
+# TLS — point at the cert+key for turn.indiecomicslive.com
+cert=/etc/letsencrypt/live/turn.indiecomicslive.com/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.indiecomicslive.com/privkey.pem
 
 # Logs
 log-file=/var/log/coturn/turn.log
@@ -106,7 +106,7 @@ Make sure the cert files exist and are readable by the `turnserver`
 user:
 
 ```bash
-sudo chown -R turnserver:turnserver /etc/letsencrypt/live/turn.indiecomics.live
+sudo chown -R turnserver:turnserver /etc/letsencrypt/live/turn.indiecomicslive.com
 ```
 
 If `turnserver` user can&rsquo;t cd through `/etc/letsencrypt/live`,
@@ -162,7 +162,7 @@ From outside (your laptop, a different cloud):
 
 ```bash
 # Trickle ICE test (returns "1" line per ICE candidate gathered)
-turnutils_uclient -v -u "$USER" -w "$PASS" -p 3478 turn.indiecomics.live
+turnutils_uclient -v -u "$USER" -w "$PASS" -p 3478 turn.indiecomicslive.com
 ```
 
 If you see `srflx` and `relay` candidates, TURN is working. If you
@@ -173,11 +173,11 @@ only see `host`, the firewall is blocking UDP relay range or
 
 Use [Trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/):
 
-1. Add ICE server: `turn:turn.indiecomics.live:3478?transport=udp`,
+1. Add ICE server: `turn:turn.indiecomicslive.com:3478?transport=udp`,
    the username and password from 5a.
 2. &ldquo;Gather candidates.&rdquo; You should see a `relay`
    candidate.
-3. Repeat with `turns:turn.indiecomics.live:5349?transport=tcp` and
+3. Repeat with `turns:turn.indiecomicslive.com:5349?transport=tcp` and
    confirm a relay candidate appears (this proves TLS port is open
    too).
 
@@ -185,10 +185,10 @@ Use [Trickle ICE](https://webrtc.github.io/samples/src/content/peerconnection/tr
 
 1. Set in the app `.env`:
    ```
-   TURN_HOST=turn.indiecomics.live
+   TURN_HOST=turn.indiecomicslive.com
    TURN_PORT=3478
    TURN_TLS_PORT=5349
-   TURN_REALM=indiecomics.live
+   TURN_REALM=indiecomicslive.com
    TURN_SHARED_SECRET=<same value as static-auth-secret>
    ```
 2. Restart the Next.js app.

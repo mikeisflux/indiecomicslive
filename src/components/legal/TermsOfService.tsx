@@ -5,13 +5,13 @@ export default function TermsOfService() {
     <Doc slug="terms">
       <p>
         Welcome to <strong>Indie Comics Live</strong> (
-        <a href="https://indiecomics.live">indiecomics.live</a>), a live-auction
+        <a href="https://indiecomicslive.com">indiecomicslive.com</a>), a live-auction
         platform for indie comics, art books, and trading cards operated by{" "}
         <strong>Divinity Comics Inc.</strong>, an Indiana nonprofit corporation
         (&ldquo;Divinity Comics,&rdquo; &ldquo;we,&rdquo; &ldquo;our,&rdquo; or
         &ldquo;us&rdquo;). Indie Comics Live is a wholly operated subsidiary
         brand of Divinity Comics Inc. These Terms of Service (&ldquo;Terms&rdquo;)
-        govern your access to and use of indiecomics.live, our services,
+        govern your access to and use of indiecomicslive.com, our services,
         applications, and related tools (collectively, the
         &ldquo;Services&rdquo;).
       </p>
@@ -244,9 +244,9 @@ export default function TermsOfService() {
       <p>
         Divinity Comics Inc.
         <br />
-        Email: <a href="mailto:support@indiecomics.live">support@indiecomics.live</a>
+        Email: <a href="mailto:support@indiecomicslive.com">support@indiecomicslive.com</a>
         <br />
-        Website: <a href="https://indiecomics.live">https://indiecomics.live</a>
+        Website: <a href="https://indiecomicslive.com">https://indiecomicslive.com</a>
       </p>
     </Doc>
   );

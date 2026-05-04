@@ -61,7 +61,7 @@ export default function ChargebacksPolicy() {
       <h2>7. Contact</h2>
       <p>
         Disputes:{" "}
-        <a href="mailto:trust@indiecomics.live">trust@indiecomics.live</a>
+        <a href="mailto:trust@indiecomicslive.com">trust@indiecomicslive.com</a>
       </p>
     </Doc>
   );

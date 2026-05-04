@@ -40,7 +40,7 @@ export default function ContentGuidelines() {
       <h2>4. Reporting Violations</h2>
       <p>
         Use the report flow on any listing, message, or stream. Or email{" "}
-        <a href="mailto:trust@indiecomics.live">trust@indiecomics.live</a>.
+        <a href="mailto:trust@indiecomicslive.com">trust@indiecomicslive.com</a>.
       </p>
 
       <h2>5. Enforcement</h2>

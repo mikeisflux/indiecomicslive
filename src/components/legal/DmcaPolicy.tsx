@@ -12,7 +12,7 @@ export default function DmcaPolicy() {
       <h2>1. Filing a Takedown Notice</h2>
       <p>
         Send a notice that includes the following to{" "}
-        <a href="mailto:dmca@indiecomics.live">dmca@indiecomics.live</a>:
+        <a href="mailto:dmca@indiecomicslive.com">dmca@indiecomicslive.com</a>:
       </p>
       <ul>
         <li>A physical or electronic signature of the copyright owner or authorized agent;</li>
@@ -67,7 +67,7 @@ export default function DmcaPolicy() {
         Attn: DMCA Agent
         <br />
         Email:{" "}
-        <a href="mailto:dmca@indiecomics.live">dmca@indiecomics.live</a>
+        <a href="mailto:dmca@indiecomicslive.com">dmca@indiecomicslive.com</a>
       </p>
     </Doc>
   );

@@ -31,13 +31,13 @@ export default function GdprCcpaNotice() {
         <strong>We do not sell or share personal information for cross-context behavioral advertising.</strong>{" "}
         You may still exercise your right to opt out as a matter of record by
         emailing{" "}
-        <a href="mailto:privacy@indiecomics.live">privacy@indiecomics.live</a>.
+        <a href="mailto:privacy@indiecomicslive.com">privacy@indiecomicslive.com</a>.
       </p>
 
       <h2>3. How to Exercise Your Rights</h2>
       <p>
         Email{" "}
-        <a href="mailto:privacy@indiecomics.live">privacy@indiecomics.live</a>{" "}
+        <a href="mailto:privacy@indiecomicslive.com">privacy@indiecomicslive.com</a>{" "}
         from the address associated with your account. We may need to verify
         your identity before fulfilling certain requests.
       </p>

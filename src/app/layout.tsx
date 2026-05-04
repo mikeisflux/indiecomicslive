@@ -3,7 +3,7 @@ import PWARegister from "@/components/PWARegister";
 import AgeGate from "@/components/AgeGate";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomics.live";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomicslive.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

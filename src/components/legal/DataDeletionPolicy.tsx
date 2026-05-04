@@ -6,7 +6,7 @@ export default function DataDeletionPolicy() {
       <h2>1. How to Delete Your Account</h2>
       <p>
         Sign in and visit Account &rarr; Delete Account, or email{" "}
-        <a href="mailto:privacy@indiecomics.live">privacy@indiecomics.live</a>{" "}
+        <a href="mailto:privacy@indiecomicslive.com">privacy@indiecomicslive.com</a>{" "}
         from the email address on file.
       </p>
 

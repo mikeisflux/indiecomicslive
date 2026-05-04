@@ -15,12 +15,12 @@ export const PARENT_ENTITY = "Divinity Comics Inc.";
 export const PARENT_ENTITY_DESCRIPTOR =
   "an Indiana nonprofit corporation";
 export const BRAND = "Indie Comics Live";
-export const SITE_HOST = "indiecomics.live";
-export const SUPPORT_EMAIL = "support@indiecomics.live";
-export const PRIVACY_EMAIL = "privacy@indiecomics.live";
-export const SELLERS_EMAIL = "sellers@indiecomics.live";
-export const TRUST_EMAIL = "trust@indiecomics.live";
-export const DMCA_EMAIL = "dmca@indiecomics.live";
+export const SITE_HOST = "indiecomicslive.com";
+export const SUPPORT_EMAIL = "support@indiecomicslive.com";
+export const PRIVACY_EMAIL = "privacy@indiecomicslive.com";
+export const SELLERS_EMAIL = "sellers@indiecomicslive.com";
+export const TRUST_EMAIL = "trust@indiecomicslive.com";
+export const DMCA_EMAIL = "dmca@indiecomicslive.com";
 
 export const LEGAL_DOC_SLUGS = [
   "terms",

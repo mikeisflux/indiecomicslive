@@ -35,7 +35,7 @@ export default function FraudPolicy() {
       <h2>4. Reporting Suspected Fraud</h2>
       <p>
         Email{" "}
-        <a href="mailto:trust@indiecomics.live">trust@indiecomics.live</a>{" "}
+        <a href="mailto:trust@indiecomicslive.com">trust@indiecomicslive.com</a>{" "}
         with as much detail as you can. We treat reports as confidential.
       </p>
     </Doc>

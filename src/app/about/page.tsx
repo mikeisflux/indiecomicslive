@@ -27,7 +27,7 @@ const orgJsonLd = {
     "@type": "Place",
     address: { "@type": "PostalAddress", addressRegion: "IN", addressCountry: "US" },
   },
-  url: "https://indiecomics.live",
+  url: "https://indiecomicslive.com",
 };
 
 export default function AboutPage() {
@@ -136,26 +136,26 @@ export default function AboutPage() {
           <p>
             Press, partnerships, or general inquiries:{" "}
             <a
-              href="mailto:hello@indiecomics.live"
+              href="mailto:hello@indiecomicslive.com"
               className="text-accent hover:underline"
             >
-              hello@indiecomics.live
+              hello@indiecomicslive.com
             </a>
             <br />
             Support:{" "}
             <a
-              href="mailto:support@indiecomics.live"
+              href="mailto:support@indiecomicslive.com"
               className="text-accent hover:underline"
             >
-              support@indiecomics.live
+              support@indiecomicslive.com
             </a>
             <br />
             Trust &amp; Safety:{" "}
             <a
-              href="mailto:trust@indiecomics.live"
+              href="mailto:trust@indiecomicslive.com"
               className="text-accent hover:underline"
             >
-              trust@indiecomics.live
+              trust@indiecomicslive.com
             </a>
           </p>
         </section>

@@ -10,10 +10,10 @@ delete Streamlick&rdquo; step.
 You will need:
 
 - SSH access to the streaming box (root or a user with `sudo`).
-- The new app&rsquo;s public host (e.g. `https://indiecomics.live`).
+- The new app&rsquo;s public host (e.g. `https://indiecomicslive.com`).
 - A 32+ char shared secret for JWT (`ANT_MEDIA_JWT_SECRET`).
 - A 32+ char shared secret for stream webhooks (`ANT_MEDIA_WEBHOOK_SECRET`).
-- A target hostname for the streaming box (e.g. `stream.indiecomics.live`).
+- A target hostname for the streaming box (e.g. `stream.indiecomicslive.com`).
 - DNS access to point that hostname at the box.
 - An SSL cert for that hostname (Let&rsquo;s Encrypt is fine).
 
@@ -122,8 +122,8 @@ nobody can publish through stale endpoints.
 ### 3e. DNS
 
 Update DNS for your chosen streaming hostname (e.g.
-`stream.indiecomics.live`) to point at the box. Wait for propagation
-(`dig stream.indiecomics.live`). Replace the cert in
+`stream.indiecomicslive.com`) to point at the box. Wait for propagation
+(`dig stream.indiecomicslive.com`). Replace the cert in
 `/usr/local/antmedia/conf` if Ant Media is doing TLS termination, or
 in your reverse proxy if there is one.
 
@@ -135,7 +135,7 @@ later.
 ### 3f. Set the `.env` on the app box
 
 ```
-ANT_MEDIA_HOST=stream.indiecomics.live
+ANT_MEDIA_HOST=stream.indiecomicslive.com
 ANT_MEDIA_PORT=5443
 ANT_MEDIA_APP=WebRTCAppEE
 ANT_MEDIA_JWT_SECRET=<the value from 3a>

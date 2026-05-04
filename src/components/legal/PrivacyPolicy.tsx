@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
         , an Indiana nonprofit corporation operating <strong>Indie Comics
         Live</strong> (&ldquo;we,&rdquo; &ldquo;our,&rdquo; &ldquo;us&rdquo;),
         collects, uses, stores, and protects your personal information when
-        you visit indiecomics.live or use our Services.
+        you visit indiecomicslive.com or use our Services.
       </p>
 
       <h2>1. Information We Collect</h2>
@@ -134,7 +134,7 @@ export default function PrivacyPolicy() {
       </p>
       <p>
         Submit requests to{" "}
-        <a href="mailto:privacy@indiecomics.live">privacy@indiecomics.live</a>.
+        <a href="mailto:privacy@indiecomicslive.com">privacy@indiecomicslive.com</a>.
       </p>
 
       <h2>7. Children</h2>
@@ -169,7 +169,7 @@ export default function PrivacyPolicy() {
         Divinity Comics Inc.
         <br />
         Privacy:{" "}
-        <a href="mailto:privacy@indiecomics.live">privacy@indiecomics.live</a>
+        <a href="mailto:privacy@indiecomicslive.com">privacy@indiecomicslive.com</a>
       </p>
     </Doc>
   );

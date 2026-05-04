@@ -141,7 +141,7 @@ export default function SellerAgreement() {
       <h2>10. Contact</h2>
       <p>
         Questions about seller responsibilities:{" "}
-        <a href="mailto:sellers@indiecomics.live">sellers@indiecomics.live</a>
+        <a href="mailto:sellers@indiecomicslive.com">sellers@indiecomicslive.com</a>
       </p>
     </Doc>
   );

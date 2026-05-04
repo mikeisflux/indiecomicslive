@@ -28,7 +28,7 @@ export default function Doc({
         </p>
         <p className="mt-3">
           Questions:{" "}
-          <a href="mailto:support@indiecomics.live">support@indiecomics.live</a>
+          <a href="mailto:support@indiecomicslive.com">support@indiecomicslive.com</a>
         </p>
       </aside>
     </article>

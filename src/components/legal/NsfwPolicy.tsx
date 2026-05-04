@@ -54,7 +54,7 @@ export default function NsfwPolicy() {
       <h2>6. Reporting</h2>
       <p>
         Report violations to{" "}
-        <a href="mailto:trust@indiecomics.live">trust@indiecomics.live</a>.
+        <a href="mailto:trust@indiecomicslive.com">trust@indiecomicslive.com</a>.
         Suspected CSAM is reported to NCMEC immediately and to law enforcement
         as appropriate.
       </p>

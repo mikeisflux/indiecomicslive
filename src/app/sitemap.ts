@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomics.live";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomicslive.com";
 
   const shows = await prisma.show
     .findMany({
