@@ -176,6 +176,71 @@ export function verifyAntMediaWebhook(
   }
 }
 
+// REST API: hit the version endpoint. Cheapest way to confirm the
+// app box can actually reach the streaming box and auth correctly.
+export async function probeAntMediaVersion(
+  config: AntMediaConfig,
+): Promise<{
+  ok: boolean;
+  reachable: boolean;
+  authOk: boolean;
+  versionName?: string;
+  versionType?: string;
+  latencyMs?: number;
+  error?: string;
+}> {
+  const url = `${baseUrl(config, "https")}/rest/v2/version`;
+  const t0 = Date.now();
+  try {
+    const headers: Record<string, string> = {};
+    if (config.restAuth) headers.Authorization = `Basic ${config.restAuth}`;
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    });
+    const latencyMs = Date.now() - t0;
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        reachable: true,
+        authOk: false,
+        latencyMs,
+        error: "rest_auth_failed",
+      };
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        reachable: true,
+        authOk: false,
+        latencyMs,
+        error: `http_${res.status}`,
+      };
+    }
+    const data = (await res.json()) as {
+      versionName?: string;
+      versionType?: string;
+    };
+    return {
+      ok: true,
+      reachable: true,
+      authOk: true,
+      versionName: data.versionName,
+      versionType: data.versionType,
+      latencyMs,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      reachable: false,
+      authOk: false,
+      latencyMs: Date.now() - t0,
+      error: err instanceof Error ? err.message : "fetch_failed",
+    };
+  }
+}
+
 // REST API: get broadcast status (active / idle / etc.). Used to
 // double-check a stream is actually live before flipping show.status.
 export async function getBroadcastStatus(

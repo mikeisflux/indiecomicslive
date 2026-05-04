@@ -57,6 +57,55 @@ export function issueTurnCredential(opts: {
   return { username, credential, ttlSeconds: opts.config.ttlSeconds };
 }
 
+// Self-test the TURN config. We can't open a UDP relay from a
+// Node process easily, but we CAN verify the credential the app
+// would issue is well-formed and that DNS resolves to a public IP.
+// For a real reachability test, point a browser at the Trickle ICE
+// page in docs/runbooks/turn-server-reset.md.
+export async function probeTurnConfig(config: TurnConfig | null): Promise<{
+  ok: boolean;
+  configured: boolean;
+  hostResolved: boolean;
+  credentialFormatOk: boolean;
+  error?: string;
+}> {
+  if (!config) {
+    return {
+      ok: false,
+      configured: false,
+      hostResolved: false,
+      credentialFormatOk: false,
+      error: "TURN_HOST or TURN_SHARED_SECRET unset",
+    };
+  }
+
+  const cred = issueTurnCredential({ config, userId: "probe" });
+  const credentialFormatOk =
+    /^\d+:probe$/.test(cred.username) &&
+    /^[A-Za-z0-9+/=]+$/.test(cred.credential);
+
+  let hostResolved = false;
+  try {
+    const dns = await import("node:dns/promises");
+    const records = await dns.lookup(config.host, { all: true });
+    hostResolved = records.length > 0;
+  } catch {
+    hostResolved = false;
+  }
+
+  return {
+    ok: hostResolved && credentialFormatOk,
+    configured: true,
+    hostResolved,
+    credentialFormatOk,
+    error: !hostResolved
+      ? `DNS lookup failed for ${config.host}`
+      : !credentialFormatOk
+        ? "credential format unexpected"
+        : undefined,
+  };
+}
+
 // Build the iceServers array the browser RTCPeerConnection wants.
 // Includes UDP, TCP, and TLS forms so we cover restrictive networks.
 // Falls back to a public STUN if no TURN is configured.
