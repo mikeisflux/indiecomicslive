@@ -210,12 +210,13 @@ resolve() {
   # Direct queries
   for resolver in 185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8 9.9.9.9; do
     raw=$(dig +short +time=3 +tries=1 -t "$kind" "$name" @"$resolver" 2>/dev/null || true)
-    out=$(echo "$raw" | grep -E "$re" | head -1)
-    [ -n "$out" ] && { echo "$out"; return; }
+    out=$(echo "$raw" | grep -E "$re" | head -1 || true)
+    [ -n "$out" ] && { echo "$out"; return 0; }
   done
+  return 0   # don't fail the script when nothing resolves; caller handles empty result
 }
-RESOLVED_V4="$(resolve A    "$TURN_HOST")"
-RESOLVED_V6="$(resolve AAAA "$TURN_HOST")"
+RESOLVED_V4="$(resolve A    "$TURN_HOST" || true)"
+RESOLVED_V6="$(resolve AAAA "$TURN_HOST" || true)"
 
 if [ "$RESOLVED_V4" != "$PUBLIC_IPV4" ]; then
   cat <<EOF >&2
