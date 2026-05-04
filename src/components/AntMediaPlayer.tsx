@@ -55,16 +55,22 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
     let adaptor: ReturnType<WebRtcAdaptorCtor> | null = null;
 
     async function start() {
-      const r = await fetch(`/api/shows/${showId}/play-token`);
-      if (!r.ok) {
+      const [tokenR, iceR] = await Promise.all([
+        fetch(`/api/shows/${showId}/play-token`),
+        fetch(`/api/turn-credentials`),
+      ]);
+      if (!tokenR.ok) {
         setError("Stream not available");
         return;
       }
-      const { webSocketUrl, streamId, playToken } = (await r.json()) as {
+      const { webSocketUrl, streamId, playToken } = (await tokenR.json()) as {
         webSocketUrl: string;
         streamId: string;
         playToken: string;
       };
+      const { iceServers } = (await iceR.json().catch(() => ({
+        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+      }))) as { iceServers: RTCIceServer[] };
       if (cancelled) return;
 
       const scriptOrigin = new URL(webSocketUrl.replace("wss://", "https://"))
@@ -82,7 +88,7 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
 
       adaptor = new Ctor({
         websocket_url: webSocketUrl,
-        peerconnection_config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
+        peerconnection_config: { iceServers },
         sdp_constraints: { OfferToReceiveAudio: true, OfferToReceiveVideo: true },
         remoteVideoId: `remote-video-${streamId}`,
         isPlayMode: true,

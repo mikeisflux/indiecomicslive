@@ -195,6 +195,14 @@ Every show gets `streamId = show.id` and a JWT publish token. Sellers go live vi
 
 The Ant Media stream webhook (`liveStreamStarted` / `liveStreamEnded`) flips `show.status` automatically once frames start landing — that's what surfaces the show under "Live now" on the home page.
 
+### TURN relay
+
+Both the publisher and player fetch ICE servers from `/api/turn-credentials` on mount. Without a TURN server, ~10-15% of users behind symmetric NAT (mobile carriers, corporate firewalls) will fail to connect.
+
+Configured via env (`TURN_HOST`, `TURN_PORT`, `TURN_TLS_PORT`, `TURN_REALM`, `TURN_SHARED_SECRET`, `TURN_TTL_SECONDS`). Uses **coturn's `use-auth-secret` mode** — server signs short-lived credentials with HMAC-SHA1; coturn validates the timestamp + HMAC without a DB lookup. Set `static-auth-secret` in coturn to the same value as `TURN_SHARED_SECRET`.
+
+If `TURN_*` is unset, the API falls back to Google's public STUN — fine for development, not enough for production.
+
 ## Auction engine
 
 `src/lib/auction.ts`:
