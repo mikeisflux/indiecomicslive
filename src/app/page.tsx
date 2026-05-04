@@ -1,8 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { db, shows, users } from "@/db";
-import { desc, eq, inArray } from "drizzle-orm";
-import { muxThumbnailUrl } from "@/lib/mux";
+import { desc, inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +12,7 @@ async function getLiveAndUpcoming() {
       title: shows.title,
       status: shows.status,
       coverImageUrl: shows.coverImageUrl,
-      muxPlaybackId: shows.muxPlaybackId,
+      streamId: shows.streamId,
       scheduledFor: shows.scheduledFor,
       sellerId: shows.sellerId,
     })
@@ -26,7 +25,11 @@ async function getLiveAndUpcoming() {
 
   const sellerIds = [...new Set(rows.map((r) => r.sellerId))];
   const sellers = await db
-    .select({ id: users.id, handle: users.handle, displayName: users.displayName })
+    .select({
+      id: users.id,
+      handle: users.handle,
+      name: users.name,
+    })
     .from(users)
     .where(inArray(users.id, sellerIds));
   const sellerMap = new Map(sellers.map((s) => [s.id, s]));
@@ -97,23 +100,23 @@ function ShowCard({
     title: string;
     status: string;
     coverImageUrl: string | null;
-    muxPlaybackId: string | null;
     scheduledFor: Date | null;
-    seller?: { handle: string; displayName: string | null };
+    seller?: { handle: string | null; name: string | null };
   };
 }) {
-  const thumb =
-    show.coverImageUrl ||
-    (show.muxPlaybackId ? muxThumbnailUrl(show.muxPlaybackId) : null);
-
   return (
     <Link
       href={`/s/${show.id}`}
       className="group overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] transition hover:border-white/20"
     >
       <div className="relative aspect-video bg-black/60">
-        {thumb ? (
-          <Image src={thumb} alt={show.title} fill className="object-cover" />
+        {show.coverImageUrl ? (
+          <Image
+            src={show.coverImageUrl}
+            alt={show.title}
+            fill
+            className="object-cover"
+          />
         ) : null}
         {show.status === "live" && (
           <span className="absolute left-3 top-3 rounded-full bg-accent px-2 py-0.5 text-xs font-bold uppercase">

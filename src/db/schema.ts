@@ -34,14 +34,21 @@ export const orderStatus = pgEnum("order_status", [
   "cancelled",
 ]);
 
+export const paymentProcessor = pgEnum("payment_processor", ["nmi"]);
+
+// `users` shape follows Auth.js v5 + Drizzle adapter expectations
+// (id, name, email, emailVerified, image) so we can plug DrizzleAdapter
+// in without a custom mapping. Custom fields (handle, role, age_*,
+// banned_at) live alongside; the adapter ignores extra columns.
 export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name"),
     email: text("email").notNull(),
-    handle: text("handle").notNull(),
-    displayName: text("display_name"),
-    avatarUrl: text("avatar_url"),
+    emailVerified: timestamp("email_verified", { withTimezone: true }),
+    image: text("image"),
+    handle: text("handle"),
     role: userRole("role").notNull().default("viewer"),
     ageVerifiedAt: timestamp("age_verified_at", { withTimezone: true }),
     bannedAt: timestamp("banned_at", { withTimezone: true }),
@@ -52,6 +59,40 @@ export const users = pgTable(
   (t) => ({
     emailIdx: uniqueIndex("users_email_idx").on(t.email),
     handleIdx: uniqueIndex("users_handle_idx").on(t.handle),
+  }),
+);
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: uuid("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("providerAccountId").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.provider, t.providerAccountId] }),
+  }),
+);
+
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.identifier, t.token] }),
   }),
 );
 
@@ -83,9 +124,8 @@ export const shows = pgTable(
     scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
-    muxLiveStreamId: text("mux_live_stream_id"),
-    muxStreamKey: text("mux_stream_key"),
-    muxPlaybackId: text("mux_playback_id"),
+    streamId: text("stream_id"),
+    recordingUrl: text("recording_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -165,8 +205,11 @@ export const orders = pgTable(
       .references(() => users.id),
     amountCents: integer("amount_cents").notNull(),
     status: orderStatus("status").notNull().default("pending_payment"),
-    paymentProvider: text("payment_provider"),
-    paymentRef: text("payment_ref"),
+    paymentProcessor: paymentProcessor("payment_processor"),
+    nmiCustomerVaultId: text("nmi_customer_vault_id"),
+    nmiTransactionId: text("nmi_transaction_id"),
+    nmiInitialTransactionId: text("nmi_initial_transaction_id"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
     shippingAddress: text("shipping_address"),
     trackingNumber: text("tracking_number"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -197,6 +240,32 @@ export const chatMessages = pgTable(
   },
   (t) => ({
     showIdx: index("chat_show_idx").on(t.showId, t.createdAt),
+  }),
+);
+
+export const userPaymentMethods = pgTable(
+  "user_payment_methods",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    processor: paymentProcessor("processor").notNull(),
+    vaultId: text("vault_id").notNull(),
+    cardBrand: text("card_brand"),
+    cardLast4: text("card_last4"),
+    cardExpMonth: integer("card_exp_month"),
+    cardExpYear: integer("card_exp_year"),
+    initialTransactionId: text("initial_transaction_id"),
+    isDefault: boolean("is_default").notNull().default(false),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("payment_methods_user_idx").on(t.userId),
+    vaultIdx: uniqueIndex("payment_methods_vault_idx").on(t.processor, t.vaultId),
   }),
 );
 

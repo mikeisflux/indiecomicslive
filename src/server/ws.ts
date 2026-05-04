@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, chatMessages, lots } from "@/db";
 import { eq } from "drizzle-orm";
 import { placeBid, closeLot } from "@/lib/auction";
+import { chargeOrder } from "@/lib/payments";
 
 const port = Number(process.env.WS_PORT ?? 3001);
 
@@ -136,8 +137,19 @@ setInterval(async () => {
     for (const lot of liveLots) {
       if (lot.endsAt && lot.endsAt.getTime() <= now) {
         const closed = await closeLot(lot.id);
-        if (closed) {
-          broadcast(showId, { type: "lot_closed", ...closed });
+        if (!closed) continue;
+        broadcast(showId, { type: "lot_closed", ...closed });
+
+        if (closed.sold && "orderId" in closed && closed.orderId) {
+          chargeOrder(closed.orderId).then((result) => {
+            broadcast(showId, {
+              type: "order_charged",
+              orderId: closed.orderId,
+              lotId: closed.lotId,
+              ok: result.ok,
+              reason: result.ok ? undefined : result.reason,
+            });
+          });
         }
       }
     }

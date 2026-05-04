@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { db, shows } from "@/db";
 import { auth } from "@/lib/auth";
-import { createLiveStream } from "@/lib/mux";
+import { buildPublishUrls, loadAntMediaConfig } from "@/lib/antmedia";
 
 const Body = z.object({
   title: z.string().min(1).max(200),
@@ -16,14 +17,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => null);
-  const parsed = Body.safeParse(body);
+  const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const stream = await createLiveStream();
+  const config = loadAntMediaConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "antmedia_not_configured" },
+      { status: 502 },
+    );
+  }
 
+  // Stream id = show id. Ant Media auto-creates the broadcast on first
+  // publish; no REST call needed up front.
   const [row] = await db
     .insert(shows)
     .values({
@@ -33,14 +41,14 @@ export async function POST(req: Request) {
       scheduledFor: parsed.data.scheduledFor
         ? new Date(parsed.data.scheduledFor)
         : null,
-      muxLiveStreamId: stream.liveStreamId,
-      muxStreamKey: stream.streamKey,
-      muxPlaybackId: stream.playbackId,
     })
     .returning();
 
-  return NextResponse.json({
-    show: row,
-    rtmp: { url: stream.rtmpUrl, streamKey: stream.streamKey },
-  });
+  await db
+    .update(shows)
+    .set({ streamId: row.id })
+    .where(eq(shows.id, row.id));
+
+  const publish = await buildPublishUrls(config, row.id);
+  return NextResponse.json({ show: { ...row, streamId: row.id }, publish });
 }

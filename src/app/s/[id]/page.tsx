@@ -19,8 +19,8 @@ export default async function ShowPage({
     .select({
       id: users.id,
       handle: users.handle,
-      displayName: users.displayName,
-      avatarUrl: users.avatarUrl,
+      name: users.name,
+      image: users.image,
     })
     .from(users)
     .where(eq(users.id, show.sellerId));
@@ -39,7 +39,7 @@ export default async function ShowPage({
         id: show.id,
         title: show.title,
         status: show.status,
-        muxPlaybackId: show.muxPlaybackId,
+        coverImageUrl: show.coverImageUrl,
       }}
       seller={seller ?? null}
       liveLot={liveLot}

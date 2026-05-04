@@ -5,7 +5,7 @@ export default function NewShowForm() {
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<null | {
-    rtmp: { url: string; streamKey: string };
+    publish: { rtmpUrl: string; streamId: string; webSocketUrl: string };
     show: { id: string };
   }>(null);
 
@@ -28,20 +28,25 @@ export default function NewShowForm() {
     return (
       <div className="space-y-3 text-sm">
         <p className="font-semibold">Stream created.</p>
+        <p className="text-xs text-paper/60">
+          Go live from the browser, or use OBS with the RTMP URL below.
+        </p>
         <div>
-          <label className="text-xs text-paper/60">RTMP URL</label>
+          <label className="text-xs text-paper/60">RTMP URL (OBS)</label>
           <input
             readOnly
-            value={result.rtmp.url}
+            value={result.publish.rtmpUrl}
             className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs"
+            onFocus={(e) => e.currentTarget.select()}
           />
         </div>
         <div>
-          <label className="text-xs text-paper/60">Stream key</label>
+          <label className="text-xs text-paper/60">Stream ID</label>
           <input
             readOnly
-            value={result.rtmp.streamKey}
+            value={result.publish.streamId}
             className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs"
+            onFocus={(e) => e.currentTarget.select()}
           />
         </div>
         <a

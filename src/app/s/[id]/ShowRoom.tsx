@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import MuxPlayer from "@mux/mux-player-react";
+import dynamic from "next/dynamic";
+
+const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
+  ssr: false,
+});
 
 type Lot = {
   id: string;
@@ -20,16 +24,30 @@ type Props = {
     id: string;
     title: string;
     status: string;
-    muxPlaybackId: string | null;
+    coverImageUrl: string | null;
   };
-  seller: { handle: string; displayName: string | null; avatarUrl: string | null } | null;
+  seller: {
+    handle: string | null;
+    name: string | null;
+    image: string | null;
+  } | null;
   liveLot: Lot | null;
   queuedLots: Lot[];
 };
 
-type ChatMsg = { id: string; userId: string; body: string; createdAt: string };
+type ChatMsg = {
+  id: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+};
 
-export default function ShowRoom({ show, seller, liveLot: initialLot, queuedLots }: Props) {
+export default function ShowRoom({
+  show,
+  seller,
+  liveLot: initialLot,
+  queuedLots,
+}: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [lot, setLot] = useState<Lot | null>(initialLot);
@@ -39,6 +57,7 @@ export default function ShowRoom({ show, seller, liveLot: initialLot, queuedLots
   const userId = useFakeUserId();
 
   useEffect(() => {
+    if (!userId) return;
     const url = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001";
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -73,7 +92,9 @@ export default function ShowRoom({ show, seller, liveLot: initialLot, queuedLots
 
   function sendChat() {
     if (!chatDraft.trim() || !wsRef.current) return;
-    wsRef.current.send(JSON.stringify({ type: "chat", body: chatDraft.trim() }));
+    wsRef.current.send(
+      JSON.stringify({ type: "chat", body: chatDraft.trim() }),
+    );
     setChatDraft("");
   }
 
@@ -90,29 +111,20 @@ export default function ShowRoom({ show, seller, liveLot: initialLot, queuedLots
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
-        <a href="/" className="text-paper/60 hover:text-paper">←</a>
+        <a href="/" className="text-paper/60 hover:text-paper">
+          ←
+        </a>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{show.title}</p>
           <p className="truncate text-xs text-paper/60">
-            @{seller?.handle ?? "unknown"} · {connected ? "connected" : "connecting…"}
+            @{seller?.handle ?? "unknown"} ·{" "}
+            {connected ? "connected" : "connecting…"}
           </p>
         </div>
       </header>
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
-        {show.muxPlaybackId ? (
-          <MuxPlayer
-            playbackId={show.muxPlaybackId}
-            streamType="ll-live"
-            autoPlay
-            muted
-            style={{ height: "100%", width: "100%", "--controls": "none" } as React.CSSProperties}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-paper/40">
-            Stream not started
-          </div>
-        )}
+        <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
       </div>
 
       <BidBar lot={lot} onBid={placeBid} bidErr={bidErr} />
@@ -182,7 +194,9 @@ function BidBar({
   }
 
   const endsAt = lot.endsAt ? new Date(lot.endsAt).getTime() : null;
-  const remainingSec = endsAt ? Math.max(0, Math.ceil((endsAt - now) / 1000)) : null;
+  const remainingSec = endsAt
+    ? Math.max(0, Math.ceil((endsAt - now) / 1000))
+    : null;
   const next =
     (lot.currentBidCents ?? lot.startingBidCents - lot.minIncrementCents) +
     lot.minIncrementCents;
@@ -209,7 +223,9 @@ function BidBar({
           Bid ${(next / 100).toFixed(2)}
         </button>
       </div>
-      {bidErr && <p className="mt-2 text-xs text-accent">Bid rejected: {bidErr}</p>}
+      {bidErr && (
+        <p className="mt-2 text-xs text-accent">Bid rejected: {bidErr}</p>
+      )}
     </div>
   );
 }

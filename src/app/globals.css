@@ -1,6 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0a0a;
+  --color-paper: #f5f1e8;
+  --color-accent: #ff3366;
+}
 
 :root {
   color-scheme: dark;
@@ -8,8 +12,8 @@
 
 html,
 body {
-  background: #0a0a0a;
-  color: #f5f1e8;
+  background: var(--color-ink);
+  color: var(--color-paper);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: contain;
 }

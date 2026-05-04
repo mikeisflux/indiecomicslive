@@ -1,0 +1,140 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { db, userPaymentMethods, users } from "@/db";
+import { and, eq, isNull } from "drizzle-orm";
+import {
+  addCustomerToVault,
+  deleteVaultCustomer,
+  loadNmiConfig,
+  validateVaultCard,
+} from "@/lib/nmi";
+
+const Body = z.object({
+  paymentToken: z.string().min(1).max(200),
+  billingFirstName: z.string().trim().max(100).optional(),
+  billingLastName: z.string().trim().max(100).optional(),
+  billingLine1: z.string().trim().max(200).optional(),
+  billingLine2: z.string().trim().max(200).optional(),
+  billingCity: z.string().trim().max(100).optional(),
+  billingState: z.string().trim().max(100).optional(),
+  billingZip: z.string().trim().max(20).optional(),
+  billingCountry: z.string().trim().max(3).optional(),
+});
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const rows = await db
+    .select({
+      id: userPaymentMethods.id,
+      cardBrand: userPaymentMethods.cardBrand,
+      cardLast4: userPaymentMethods.cardLast4,
+      cardExpMonth: userPaymentMethods.cardExpMonth,
+      cardExpYear: userPaymentMethods.cardExpYear,
+      isDefault: userPaymentMethods.isDefault,
+    })
+    .from(userPaymentMethods)
+    .where(
+      and(
+        eq(userPaymentMethods.userId, session.user.id),
+        isNull(userPaymentMethods.deletedAt),
+      ),
+    );
+  return NextResponse.json({ methods: rows });
+}
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
+
+  const config = loadNmiConfig();
+  if (!config) {
+    return NextResponse.json({ error: "nmi_not_configured" }, { status: 502 });
+  }
+
+  const [user] = await db
+    .select({ email: users.email, name: users.name })
+    .from(users)
+    .where(eq(users.id, session.user.id));
+
+  const vaultResp = await addCustomerToVault(config, {
+    paymentToken: parsed.data.paymentToken,
+    firstName: parsed.data.billingFirstName,
+    lastName: parsed.data.billingLastName,
+    email: user?.email,
+    address1: parsed.data.billingLine1,
+    address2: parsed.data.billingLine2,
+    city: parsed.data.billingCity,
+    state: parsed.data.billingState,
+    zip: parsed.data.billingZip,
+    country: parsed.data.billingCountry,
+  });
+
+  if (vaultResp.response !== "1" || !vaultResp.customer_vault_id) {
+    return NextResponse.json(
+      { error: vaultResp.responsetext || "card_declined" },
+      { status: 400 },
+    );
+  }
+
+  const vaultId = vaultResp.customer_vault_id;
+
+  // Auth-and-void to confirm the card is real and chargeable.
+  const validation = await validateVaultCard(config, vaultId);
+  if (validation.response !== "1") {
+    await deleteVaultCustomer(config, vaultId).catch(() => null);
+    return NextResponse.json(
+      { error: validation.responsetext || "card_validation_failed" },
+      { status: 400 },
+    );
+  }
+
+  // Mirror brand/last4 from the validation response for display.
+  const cardBrand = validation.raw.cc_type ?? null;
+  const cardLast4 = validation.raw.cc_number?.slice(-4) ?? null;
+  const expRaw = validation.raw.cc_exp;
+  const cardExpMonth = expRaw ? Number(expRaw.slice(0, 2)) : null;
+  const cardExpYear = expRaw
+    ? 2000 + Number(expRaw.slice(2, 4))
+    : null;
+
+  await db
+    .update(userPaymentMethods)
+    .set({ isDefault: false })
+    .where(eq(userPaymentMethods.userId, session.user.id));
+
+  const [row] = await db
+    .insert(userPaymentMethods)
+    .values({
+      userId: session.user.id,
+      processor: "nmi",
+      vaultId,
+      cardBrand,
+      cardLast4,
+      cardExpMonth,
+      cardExpYear,
+      isDefault: true,
+    })
+    .returning();
+
+  return NextResponse.json({
+    method: {
+      id: row.id,
+      cardBrand: row.cardBrand,
+      cardLast4: row.cardLast4,
+      cardExpMonth: row.cardExpMonth,
+      cardExpYear: row.cardExpYear,
+      isDefault: row.isDefault,
+    },
+  });
+}

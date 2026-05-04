@@ -144,13 +144,17 @@ export async function closeLot(lotId: string) {
         .where(eq(shows.id, lot.showId));
 
       if (show) {
-        await tx.insert(orders).values({
-          lotId: lot.id,
-          buyerId: lot.currentBidUserId,
-          sellerId: show.sellerId,
-          amountCents: lot.currentBidCents,
-          status: "pending_payment",
-        });
+        const [order] = await tx
+          .insert(orders)
+          .values({
+            lotId: lot.id,
+            buyerId: lot.currentBidUserId,
+            sellerId: show.sellerId,
+            amountCents: lot.currentBidCents,
+            status: "pending_payment",
+          })
+          .returning({ id: orders.id });
+        return { sold: true, lotId, orderId: order.id };
       }
       return { sold: true, lotId };
     }
