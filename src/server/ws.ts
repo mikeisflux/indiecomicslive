@@ -1,8 +1,7 @@
 import "dotenv/config";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
-import { db, chatMessages, lots } from "@/db";
-import { eq } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 import { placeBid, closeLot } from "@/lib/auction";
 import { chargeOrder } from "@/lib/payments";
 
@@ -85,10 +84,9 @@ wss.on("connection", (ws) => {
     }
 
     if (msg.type === "chat") {
-      const [row] = await db
-        .insert(chatMessages)
-        .values({ showId: meta.showId, userId: meta.userId, body: msg.body })
-        .returning();
+      const row = await prisma.chatMessage.create({
+        data: { showId: meta.showId, userId: meta.userId, body: msg.body },
+      });
       broadcast(meta.showId, {
         type: "chat",
         id: row.id,
@@ -107,7 +105,9 @@ wss.on("connection", (ws) => {
       });
 
       if (!result.ok) {
-        ws.send(JSON.stringify({ type: "bid_rejected", reason: result.reason }));
+        ws.send(
+          JSON.stringify({ type: "bid_rejected", reason: result.reason }),
+        );
         return;
       }
 
@@ -128,10 +128,10 @@ wss.on("connection", (ws) => {
 
 setInterval(async () => {
   for (const [showId] of rooms) {
-    const liveLots = await db
-      .select({ id: lots.id, endsAt: lots.endsAt })
-      .from(lots)
-      .where(eq(lots.showId, showId));
+    const liveLots = await prisma.lot.findMany({
+      where: { showId, status: "live" },
+      select: { id: true, endsAt: true },
+    });
 
     const now = Date.now();
     for (const lot of liveLots) {
@@ -141,10 +141,11 @@ setInterval(async () => {
         broadcast(showId, { type: "lot_closed", ...closed });
 
         if (closed.sold && "orderId" in closed && closed.orderId) {
-          chargeOrder(closed.orderId).then((result) => {
+          const orderId = closed.orderId;
+          chargeOrder(orderId).then((result) => {
             broadcast(showId, {
               type: "order_charged",
-              orderId: closed.orderId,
+              orderId,
               lotId: closed.lotId,
               ok: result.ok,
               reason: result.ok ? undefined : result.reason,

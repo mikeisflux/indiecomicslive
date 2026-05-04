@@ -1,21 +1,21 @@
 import Link from "next/link";
-import { db, shows } from "@/db";
-import { desc, eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireOnboardedUser } from "@/lib/onboarding";
 import NewShowForm from "./NewShowForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function SellerDashboard() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/sign-in");
+export const metadata = {
+  title: "Seller dashboard — Indie Comics Live",
+};
 
-  const myShows = await db
-    .select()
-    .from(shows)
-    .where(eq(shows.sellerId, session.user.id))
-    .orderBy(desc(shows.createdAt));
+export default async function SellerDashboard() {
+  const me = await requireOnboardedUser("/seller");
+
+  const myShows = await prisma.show.findMany({
+    where: { sellerId: me.id },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
@@ -37,7 +37,10 @@ export default async function SellerDashboard() {
         ) : (
           <ul className="divide-y divide-white/5">
             {myShows.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-3">
+              <li
+                key={s.id}
+                className="flex items-center justify-between py-3"
+              >
                 <div>
                   <p className="font-semibold">{s.title}</p>
                   <p className="text-xs text-paper/60">

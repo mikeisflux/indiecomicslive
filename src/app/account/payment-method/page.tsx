@@ -1,13 +1,15 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { requireOnboardedUser } from "@/lib/onboarding";
 import { loadNmiConfig } from "@/lib/nmi";
 import PaymentMethodClient from "./PaymentMethodClient";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Payment method — Indie Comics Live",
+};
+
 export default async function PaymentMethodPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/sign-in");
+  await requireOnboardedUser("/account/payment-method");
 
   const config = loadNmiConfig();
   if (!config?.publicKey) {

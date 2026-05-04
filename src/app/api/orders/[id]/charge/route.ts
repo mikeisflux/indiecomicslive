@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, orders } from "@/db";
-import { eq } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 import { chargeOrder } from "@/lib/payments";
 
 // Manual charge endpoint. The auction-end flow tries to auto-charge;
-// this is the retry button shown to a buyer when the auto-charge
-// failed (declined card, network error, etc.).
+// this is the retry button shown to a buyer when auto-charge failed
+// (declined card, network error, etc.).
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -17,7 +16,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const [order] = await db.select().from(orders).where(eq(orders.id, id));
+  const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

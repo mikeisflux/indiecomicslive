@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db, shows } from "@/db";
+import { prisma } from "@/lib/prisma";
 import { loadAntMediaConfig, verifyAntMediaWebhook } from "@/lib/antmedia";
 
 // Ant Media stream webhook. Configure via "Stream Webhook" in the
@@ -27,15 +26,15 @@ export async function POST(req: Request) {
   }
 
   if (event.action === "liveStreamStarted") {
-    await db
-      .update(shows)
-      .set({ status: "live", startedAt: new Date() })
-      .where(eq(shows.streamId, event.id));
+    await prisma.show.updateMany({
+      where: { streamId: event.id },
+      data: { status: "live", startedAt: new Date() },
+    });
   } else if (event.action === "liveStreamEnded") {
-    await db
-      .update(shows)
-      .set({ status: "ended", endedAt: new Date() })
-      .where(eq(shows.streamId, event.id));
+    await prisma.show.updateMany({
+      where: { streamId: event.id },
+      data: { status: "ended", endedAt: new Date() },
+    });
   }
 
   return NextResponse.json({ ok: true });

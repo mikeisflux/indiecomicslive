@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db, lots, shows } from "@/db";
-import { and, eq, sql } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 const Body = z.object({
@@ -25,25 +24,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const [show] = await db
-    .select({ sellerId: shows.sellerId })
-    .from(shows)
-    .where(eq(shows.id, parsed.data.showId));
+  const show = await prisma.show.findUnique({
+    where: { id: parsed.data.showId },
+    select: { sellerId: true },
+  });
 
   if (!show || show.sellerId !== session.user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const [{ nextPos }] = await db
-    .select({
-      nextPos: sql<number>`COALESCE(MAX(${lots.position}), 0) + 1`,
-    })
-    .from(lots)
-    .where(eq(lots.showId, parsed.data.showId));
+  const max = await prisma.lot.aggregate({
+    where: { showId: parsed.data.showId },
+    _max: { position: true },
+  });
+  const nextPos = (max._max.position ?? 0) + 1;
 
-  const [row] = await db
-    .insert(lots)
-    .values({
+  const lot = await prisma.lot.create({
+    data: {
       showId: parsed.data.showId,
       position: nextPos,
       title: parsed.data.title,
@@ -52,8 +49,8 @@ export async function POST(req: Request) {
       startingBidCents: parsed.data.startingBidCents,
       minIncrementCents: parsed.data.minIncrementCents ?? 100,
       softCloseSeconds: parsed.data.softCloseSeconds ?? 10,
-    })
-    .returning();
+    },
+  });
 
-  return NextResponse.json({ lot: row });
+  return NextResponse.json({ lot });
 }

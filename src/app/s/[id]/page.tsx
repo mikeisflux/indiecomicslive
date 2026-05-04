@@ -1,9 +1,41 @@
 import { notFound } from "next/navigation";
-import { db, shows, lots, users } from "@/db";
-import { and, asc, eq, ne } from "drizzle-orm";
+import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
 import ShowRoom from "./ShowRoom";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const show = await prisma.show.findUnique({
+    where: { id },
+    select: {
+      title: true,
+      description: true,
+      coverImageUrl: true,
+      status: true,
+    },
+  });
+  if (!show) return { title: "Show not found" };
+
+  const liveSuffix = show.status === "live" ? " · Live now" : "";
+  return {
+    title: `${show.title}${liveSuffix} — Indie Comics Live`,
+    description:
+      show.description ??
+      "Live auction on Indie Comics Live, the adult-friendly Whatnot alternative for comics and cards.",
+    openGraph: {
+      title: `${show.title}${liveSuffix}`,
+      description: show.description ?? undefined,
+      images: show.coverImageUrl ? [{ url: show.coverImageUrl }] : undefined,
+      type: "video.other",
+    },
+  };
+}
 
 export default async function ShowPage({
   params,
@@ -12,26 +44,27 @@ export default async function ShowPage({
 }) {
   const { id } = await params;
 
-  const [show] = await db.select().from(shows).where(eq(shows.id, id)).limit(1);
+  const show = await prisma.show.findUnique({
+    where: { id },
+    include: {
+      seller: {
+        select: {
+          id: true,
+          handle: true,
+          name: true,
+          image: true,
+        },
+      },
+      lots: {
+        where: { status: { not: "unsold" } },
+        orderBy: { position: "asc" },
+      },
+    },
+  });
   if (!show) notFound();
 
-  const [seller] = await db
-    .select({
-      id: users.id,
-      handle: users.handle,
-      name: users.name,
-      image: users.image,
-    })
-    .from(users)
-    .where(eq(users.id, show.sellerId));
-
-  const showLots = await db
-    .select()
-    .from(lots)
-    .where(and(eq(lots.showId, show.id), ne(lots.status, "unsold")))
-    .orderBy(asc(lots.position));
-
-  const liveLot = showLots.find((l) => l.status === "live") ?? null;
+  const liveLot = show.lots.find((l) => l.status === "live") ?? null;
+  const queuedLots = show.lots.filter((l) => l.status === "queued");
 
   return (
     <ShowRoom
@@ -41,9 +74,9 @@ export default async function ShowPage({
         status: show.status,
         coverImageUrl: show.coverImageUrl,
       }}
-      seller={seller ?? null}
+      seller={show.seller}
       liveLot={liveLot}
-      queuedLots={showLots.filter((l) => l.status === "queued")}
+      queuedLots={queuedLots}
     />
   );
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { db, shows } from "@/db";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { buildPublishUrls, loadAntMediaConfig } from "@/lib/antmedia";
 
@@ -30,25 +29,24 @@ export async function POST(req: Request) {
     );
   }
 
-  // Stream id = show id. Ant Media auto-creates the broadcast on first
-  // publish; no REST call needed up front.
-  const [row] = await db
-    .insert(shows)
-    .values({
+  const created = await prisma.show.create({
+    data: {
       sellerId: session.user.id,
       title: parsed.data.title,
       description: parsed.data.description,
       scheduledFor: parsed.data.scheduledFor
         ? new Date(parsed.data.scheduledFor)
         : null,
-    })
-    .returning();
+    },
+  });
 
-  await db
-    .update(shows)
-    .set({ streamId: row.id })
-    .where(eq(shows.id, row.id));
+  // Stream id = show id. Ant Media auto-creates the broadcast on first
+  // publish, so no REST call needed up front.
+  const show = await prisma.show.update({
+    where: { id: created.id },
+    data: { streamId: created.id },
+  });
 
-  const publish = await buildPublishUrls(config, row.id);
-  return NextResponse.json({ show: { ...row, streamId: row.id }, publish });
+  const publish = await buildPublishUrls(config, show.id);
+  return NextResponse.json({ show, publish });
 }

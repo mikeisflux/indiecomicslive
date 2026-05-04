@@ -4,10 +4,8 @@ import { loadNmiConfig } from "@/lib/nmi";
 
 export const dynamic = "force-dynamic";
 
-// Return the PaymentCloud (NMI) public tokenization key for CollectJS.
-// Public by design — it ends up in the script tag's
-// data-tokenization-key attribute. Gated to authenticated users only
-// to cut down on key scraping by random crawlers.
+// CollectJS public tokenization key. Public by design, but gated to
+// authenticated users to discourage random scraping.
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {

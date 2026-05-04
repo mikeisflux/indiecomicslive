@@ -1,0 +1,259 @@
+// Prisma schema for indiecomicslive.
+// PG17 target. Run `npm run db:generate` to regenerate the client,
+// `npm run db:migrate` to author + apply a migration in dev.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  viewer
+  seller
+  admin
+}
+
+enum ShowStatus {
+  scheduled
+  live
+  ended
+  cancelled
+}
+
+enum LotStatus {
+  queued
+  live
+  sold
+  unsold
+}
+
+enum OrderStatus {
+  pending_payment
+  paid
+  shipped
+  delivered
+  refunded
+  cancelled
+}
+
+enum PaymentProcessor {
+  nmi
+}
+
+// User shape follows Auth.js v5 + Prisma adapter expectations
+// (id, name, email, emailVerified, image). Custom fields live alongside
+// (handle, role, banned_at). The adapter ignores extra columns.
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  handle        String?   @unique
+  role          UserRole  @default(viewer)
+  bannedAt      DateTime? @map("banned_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  accounts        Account[]
+  seller          Seller?
+  shows           Show[]            @relation("SellerShows")
+  bids            Bid[]
+  ordersAsBuyer   Order[]           @relation("Buyer")
+  ordersAsSeller  Order[]           @relation("Seller")
+  chatMessages    ChatMessage[]
+  paymentMethods  UserPaymentMethod[]
+  followingSellers Follow[]         @relation("Follower")
+  followedBy       Follow[]         @relation("Followed")
+  lotsAsHighBidder Lot[]            @relation("HighBidder")
+
+  @@map("users")
+}
+
+// Auth.js Prisma adapter tables.
+model Account {
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Seller {
+  userId            String   @id @db.Uuid
+  storeName         String   @map("store_name")
+  bio               String?
+  payoutProvider    String?  @map("payout_provider")
+  payoutAccountRef  String?  @map("payout_account_ref")
+  approved          Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sellers")
+}
+
+model Show {
+  id             String     @id @default(uuid()) @db.Uuid
+  sellerId       String     @map("seller_id") @db.Uuid
+  title          String
+  description    String?
+  coverImageUrl  String?    @map("cover_image_url")
+  status         ShowStatus @default(scheduled)
+  scheduledFor   DateTime?  @map("scheduled_for")
+  startedAt      DateTime?  @map("started_at")
+  endedAt        DateTime?  @map("ended_at")
+  streamId       String?    @map("stream_id")
+  recordingUrl   String?    @map("recording_url")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  seller       User          @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
+  lots         Lot[]
+  chatMessages ChatMessage[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("shows")
+}
+
+model Lot {
+  id                  String    @id @default(uuid()) @db.Uuid
+  showId              String    @map("show_id") @db.Uuid
+  position            Int
+  title               String
+  description         String?
+  imageUrl            String?   @map("image_url")
+  startingBidCents    Int       @map("starting_bid_cents")
+  minIncrementCents   Int       @default(100) @map("min_increment_cents")
+  softCloseSeconds    Int       @default(10) @map("soft_close_seconds")
+  status              LotStatus @default(queued)
+  currentBidCents     Int?      @map("current_bid_cents")
+  currentBidUserId    String?   @map("current_bid_user_id") @db.Uuid
+  bidCount            Int       @default(0) @map("bid_count")
+  startedAt           DateTime? @map("started_at")
+  endsAt              DateTime? @map("ends_at")
+  soldAt              DateTime? @map("sold_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  show          Show     @relation(fields: [showId], references: [id], onDelete: Cascade)
+  currentBidder User?    @relation("HighBidder", fields: [currentBidUserId], references: [id])
+  bids          Bid[]
+  orders        Order[]
+
+  @@index([showId])
+  @@index([status])
+  @@map("lots")
+}
+
+model Bid {
+  id           String   @id @default(uuid()) @db.Uuid
+  lotId        String   @map("lot_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  amountCents  Int      @map("amount_cents")
+  accepted     Boolean
+  rejectReason String?  @map("reject_reason")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lot  Lot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lotId])
+  @@index([userId])
+  @@map("bids")
+}
+
+model Order {
+  id                       String           @id @default(uuid()) @db.Uuid
+  lotId                    String           @map("lot_id") @db.Uuid
+  buyerId                  String           @map("buyer_id") @db.Uuid
+  sellerId                 String           @map("seller_id") @db.Uuid
+  amountCents              Int              @map("amount_cents")
+  status                   OrderStatus      @default(pending_payment)
+  paymentProcessor         PaymentProcessor? @map("payment_processor")
+  nmiCustomerVaultId       String?          @map("nmi_customer_vault_id")
+  nmiTransactionId         String?          @map("nmi_transaction_id")
+  nmiInitialTransactionId  String?          @map("nmi_initial_transaction_id")
+  paidAt                   DateTime?        @map("paid_at")
+  shippingAddress          String?          @map("shipping_address")
+  trackingNumber           String?          @map("tracking_number")
+  createdAt                DateTime         @default(now()) @map("created_at")
+
+  lot    Lot  @relation(fields: [lotId], references: [id])
+  buyer  User @relation("Buyer", fields: [buyerId], references: [id])
+  seller User @relation("Seller", fields: [sellerId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@map("orders")
+}
+
+model ChatMessage {
+  id         String    @id @default(uuid()) @db.Uuid
+  showId     String    @map("show_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  body       String
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  show Show @relation(fields: [showId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([showId, createdAt])
+  @@map("chat_messages")
+}
+
+model UserPaymentMethod {
+  id                    String           @id @default(uuid()) @db.Uuid
+  userId                String           @map("user_id") @db.Uuid
+  processor             PaymentProcessor
+  vaultId               String           @map("vault_id")
+  cardBrand             String?          @map("card_brand")
+  cardLast4             String?          @map("card_last4")
+  cardExpMonth          Int?             @map("card_exp_month")
+  cardExpYear           Int?             @map("card_exp_year")
+  initialTransactionId  String?          @map("initial_transaction_id")
+  isDefault             Boolean          @default(false) @map("is_default")
+  deletedAt             DateTime?        @map("deleted_at")
+  createdAt             DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([processor, vaultId])
+  @@index([userId])
+  @@map("user_payment_methods")
+}
+
+model Follow {
+  followerId String   @map("follower_id") @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  seller   User @relation("Followed", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, sellerId])
+  @@map("follows")
+}

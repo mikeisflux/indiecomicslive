@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { db, shows } from "@/db";
+import { prisma } from "@/lib/prisma";
 import { buildPublishUrls, loadAntMediaConfig } from "@/lib/antmedia";
 
 export const dynamic = "force-dynamic";
 
-// Re-issue a publish token for a show. The seller dashboard calls this
-// before going live so the token TTL is fresh.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -18,7 +15,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const [show] = await db.select().from(shows).where(eq(shows.id, id));
+  const show = await prisma.show.findUnique({ where: { id } });
   if (!show) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -36,7 +33,10 @@ export async function GET(
 
   const streamId = show.streamId ?? show.id;
   if (!show.streamId) {
-    await db.update(shows).set({ streamId }).where(eq(shows.id, show.id));
+    await prisma.show.update({
+      where: { id: show.id },
+      data: { streamId },
+    });
   }
 
   const publish = await buildPublishUrls(config, streamId);

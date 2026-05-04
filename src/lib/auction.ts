@@ -1,5 +1,4 @@
-import { db, lots, bids, orders, shows } from "@/db";
-import { and, eq, sql } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 
 export type BidResult =
   | {
@@ -12,157 +11,163 @@ export type BidResult =
     }
   | { ok: false; reason: string };
 
+// SELECT ... FOR UPDATE on the lot row inside a serializable
+// transaction. Prisma doesn't expose row-locking directly so we use
+// $queryRaw for the lock and the typed client for the rest.
+type LockedLot = {
+  id: string;
+  status: "queued" | "live" | "sold" | "unsold";
+  starting_bid_cents: number;
+  min_increment_cents: number;
+  soft_close_seconds: number;
+  current_bid_cents: number | null;
+  current_bid_user_id: string | null;
+  ends_at: Date | null;
+  bid_count: number;
+};
+
 export async function placeBid(opts: {
   lotId: string;
   userId: string;
   amountCents: number;
 }): Promise<BidResult> {
-  return await db.transaction(async (tx) => {
-    const [lot] = await tx
-      .select()
-      .from(lots)
-      .where(eq(lots.id, opts.lotId))
-      .for("update");
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<LockedLot[]>`
+      SELECT id, status, starting_bid_cents, min_increment_cents,
+             soft_close_seconds, current_bid_cents, current_bid_user_id,
+             ends_at, bid_count
+      FROM lots WHERE id = ${opts.lotId}::uuid FOR UPDATE
+    `;
+    const lot = rows[0];
 
-    if (!lot) return { ok: false, reason: "lot_not_found" };
-    if (lot.status !== "live") return { ok: false, reason: "lot_not_live" };
-    if (!lot.endsAt || lot.endsAt.getTime() < Date.now()) {
-      return { ok: false, reason: "lot_already_closed" };
+    if (!lot) return { ok: false as const, reason: "lot_not_found" };
+    if (lot.status !== "live")
+      return { ok: false as const, reason: "lot_not_live" };
+    if (!lot.ends_at || lot.ends_at.getTime() < Date.now()) {
+      return { ok: false as const, reason: "lot_already_closed" };
     }
 
     const minNext =
-      (lot.currentBidCents ?? lot.startingBidCents - lot.minIncrementCents) +
-      lot.minIncrementCents;
+      (lot.current_bid_cents ??
+        lot.starting_bid_cents - lot.min_increment_cents) +
+      lot.min_increment_cents;
 
     if (opts.amountCents < minNext) {
-      await tx.insert(bids).values({
-        lotId: opts.lotId,
-        userId: opts.userId,
-        amountCents: opts.amountCents,
-        accepted: false,
-        rejectReason: "below_min_increment",
+      await tx.bid.create({
+        data: {
+          lotId: opts.lotId,
+          userId: opts.userId,
+          amountCents: opts.amountCents,
+          accepted: false,
+          rejectReason: "below_min_increment",
+        },
       });
-      return { ok: false, reason: "below_min_increment" };
+      return { ok: false as const, reason: "below_min_increment" };
     }
 
-    if (lot.currentBidUserId === opts.userId) {
-      return { ok: false, reason: "already_high_bidder" };
+    if (lot.current_bid_user_id === opts.userId) {
+      return { ok: false as const, reason: "already_high_bidder" };
     }
 
     const now = new Date();
-    const softCloseMs = lot.softCloseSeconds * 1000;
-    const remaining = lot.endsAt.getTime() - now.getTime();
+    const softCloseMs = lot.soft_close_seconds * 1000;
+    const remaining = lot.ends_at.getTime() - now.getTime();
     const newEndsAt =
       remaining < softCloseMs
         ? new Date(now.getTime() + softCloseMs)
-        : lot.endsAt;
+        : lot.ends_at;
 
-    await tx.insert(bids).values({
-      lotId: opts.lotId,
-      userId: opts.userId,
-      amountCents: opts.amountCents,
-      accepted: true,
+    await tx.bid.create({
+      data: {
+        lotId: opts.lotId,
+        userId: opts.userId,
+        amountCents: opts.amountCents,
+        accepted: true,
+      },
     });
 
-    await tx
-      .update(lots)
-      .set({
+    await tx.lot.update({
+      where: { id: opts.lotId },
+      data: {
         currentBidCents: opts.amountCents,
         currentBidUserId: opts.userId,
         endsAt: newEndsAt,
-        bidCount: sql`${lots.bidCount} + 1`,
-      })
-      .where(eq(lots.id, opts.lotId));
+        bidCount: { increment: 1 },
+      },
+    });
 
     return {
-      ok: true,
+      ok: true as const,
       lotId: opts.lotId,
       newCurrentBidCents: opts.amountCents,
       currentBidUserId: opts.userId,
       endsAt: newEndsAt,
-      bidCount: lot.bidCount + 1,
+      bidCount: lot.bid_count + 1,
     };
   });
 }
 
 export async function startNextLot(showId: string, durationSeconds = 30) {
-  return await db.transaction(async (tx) => {
-    await tx
-      .update(lots)
-      .set({ status: "live" })
-      .where(
-        and(
-          eq(lots.showId, showId),
-          eq(lots.status, "queued"),
-          sql`${lots.position} = (
-            SELECT MIN(position) FROM lots
-            WHERE show_id = ${showId} AND status = 'queued'
-          )`,
-        ),
-      );
-
-    const [lot] = await tx
-      .select()
-      .from(lots)
-      .where(and(eq(lots.showId, showId), eq(lots.status, "live")))
-      .limit(1);
-
-    if (!lot) return null;
+  return await prisma.$transaction(async (tx) => {
+    const next = await tx.lot.findFirst({
+      where: { showId, status: "queued" },
+      orderBy: { position: "asc" },
+    });
+    if (!next) return null;
 
     const now = new Date();
     const endsAt = new Date(now.getTime() + durationSeconds * 1000);
 
-    await tx
-      .update(lots)
-      .set({ startedAt: now, endsAt })
-      .where(eq(lots.id, lot.id));
-
-    return { ...lot, startedAt: now, endsAt };
+    return await tx.lot.update({
+      where: { id: next.id },
+      data: { status: "live", startedAt: now, endsAt },
+    });
   });
 }
 
 export async function closeLot(lotId: string) {
-  return await db.transaction(async (tx) => {
-    const [lot] = await tx
-      .select()
-      .from(lots)
-      .where(eq(lots.id, lotId))
-      .for("update");
-
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<LockedLot[]>`
+      SELECT id, status, starting_bid_cents, min_increment_cents,
+             soft_close_seconds, current_bid_cents, current_bid_user_id,
+             ends_at, bid_count
+      FROM lots WHERE id = ${lotId}::uuid FOR UPDATE
+    `;
+    const lot = rows[0];
     if (!lot || lot.status !== "live") return null;
-    if (lot.endsAt && lot.endsAt.getTime() > Date.now()) return null;
+    if (lot.ends_at && lot.ends_at.getTime() > Date.now()) return null;
 
-    if (lot.currentBidUserId && lot.currentBidCents) {
-      await tx
-        .update(lots)
-        .set({ status: "sold", soldAt: new Date() })
-        .where(eq(lots.id, lotId));
+    if (lot.current_bid_user_id && lot.current_bid_cents) {
+      await tx.lot.update({
+        where: { id: lotId },
+        data: { status: "sold", soldAt: new Date() },
+      });
 
-      const [show] = await tx
-        .select({ sellerId: shows.sellerId })
-        .from(shows)
-        .where(eq(shows.id, lot.showId));
+      const showRow = await tx.lot.findUnique({
+        where: { id: lotId },
+        select: { show: { select: { sellerId: true } } },
+      });
 
-      if (show) {
-        const [order] = await tx
-          .insert(orders)
-          .values({
-            lotId: lot.id,
-            buyerId: lot.currentBidUserId,
-            sellerId: show.sellerId,
-            amountCents: lot.currentBidCents,
+      if (showRow?.show) {
+        const order = await tx.order.create({
+          data: {
+            lotId,
+            buyerId: lot.current_bid_user_id,
+            sellerId: showRow.show.sellerId,
+            amountCents: lot.current_bid_cents,
             status: "pending_payment",
-          })
-          .returning({ id: orders.id });
-        return { sold: true, lotId, orderId: order.id };
+          },
+          select: { id: true },
+        });
+        return { sold: true as const, lotId, orderId: order.id };
       }
-      return { sold: true, lotId };
+      return { sold: true as const, lotId, orderId: null };
     }
 
-    await tx
-      .update(lots)
-      .set({ status: "unsold" })
-      .where(eq(lots.id, lotId));
-    return { sold: false, lotId };
+    await tx.lot.update({
+      where: { id: lotId },
+      data: { status: "unsold" },
+    });
+    return { sold: false as const, lotId };
   });
 }

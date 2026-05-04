@@ -1,43 +1,47 @@
 import Link from "next/link";
 import Image from "next/image";
-import { db, shows, users } from "@/db";
-import { desc, inArray } from "drizzle-orm";
+import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = {
+  title: "Indie Comics Live — Whatnot alternative for adult comics & cards",
+  description:
+    "The adult-friendly Whatnot alternative. Live auctions for indie comics, NSFW art books, and trading cards. Sub-second WebRTC bidding, sellers keep more.",
+  keywords: [
+    "Whatnot alternative",
+    "live comics auction",
+    "NSFW comics",
+    "adult comic auctions",
+    "trading cards live auction",
+    "indie comics",
+    "live shopping",
+  ],
+  openGraph: {
+    title: "Indie Comics Live — Whatnot alternative for adult comics & cards",
+    description:
+      "Live auctions for adult comics, indie books, and trading cards. The Whatnot alternative built from day one for NSFW-friendly creators.",
+    type: "website",
+    siteName: "Indie Comics Live",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Indie Comics Live — Whatnot alternative for adult comics & cards",
+    description:
+      "Live auctions for adult comics, indie books, and trading cards. NSFW-friendly from day one.",
+  },
+};
+
 async function getLiveAndUpcoming() {
-  const rows = await db
-    .select({
-      id: shows.id,
-      title: shows.title,
-      status: shows.status,
-      coverImageUrl: shows.coverImageUrl,
-      streamId: shows.streamId,
-      scheduledFor: shows.scheduledFor,
-      sellerId: shows.sellerId,
-    })
-    .from(shows)
-    .where(inArray(shows.status, ["live", "scheduled"]))
-    .orderBy(desc(shows.status), desc(shows.scheduledFor))
-    .limit(40);
-
-  if (rows.length === 0) return [];
-
-  const sellerIds = [...new Set(rows.map((r) => r.sellerId))];
-  const sellers = await db
-    .select({
-      id: users.id,
-      handle: users.handle,
-      name: users.name,
-    })
-    .from(users)
-    .where(inArray(users.id, sellerIds));
-  const sellerMap = new Map(sellers.map((s) => [s.id, s]));
-
-  return rows.map((r) => ({
-    ...r,
-    seller: sellerMap.get(r.sellerId),
-  }));
+  return await prisma.show.findMany({
+    where: { status: { in: ["live", "scheduled"] } },
+    take: 40,
+    orderBy: [{ status: "desc" }, { scheduledFor: "desc" }],
+    include: {
+      seller: { select: { id: true, handle: true, name: true } },
+    },
+  });
 }
 
 export default async function Home() {
@@ -46,25 +50,66 @@ export default async function Home() {
   const upcoming = list.filter((s) => s.status === "scheduled");
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-20 pt-8">
-      <header className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">
+    <main>
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-6">
+        <Link href="/" className="text-lg font-bold tracking-tight">
           Indie Comics <span className="text-accent">Live</span>
-        </h1>
-        <Link
-          href="/sign-in"
-          className="rounded-full border border-white/10 px-4 py-2 text-sm"
-        >
-          Sign in
         </Link>
+        <nav className="flex items-center gap-2 text-sm">
+          <Link
+            href="/sell"
+            className="hidden rounded-full border border-white/10 px-3 py-1.5 sm:inline-block"
+          >
+            Sell
+          </Link>
+          <Link
+            href="/sign-in"
+            className="rounded-full border border-white/10 px-3 py-1.5"
+          >
+            Sign in
+          </Link>
+        </nav>
       </header>
 
-      <section className="mb-12">
+      <section className="mx-auto max-w-6xl px-4 pt-10 pb-12 sm:pt-16">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+          A Whatnot alternative — for adult comics & cards
+        </p>
+        <h1 className="text-3xl font-bold leading-tight sm:text-5xl">
+          Live auctions for indie comics,
+          <br />
+          adult-friendly art books, and trading cards.
+        </h1>
+        <p className="mt-4 max-w-2xl text-paper/70 sm:text-lg">
+          The live-auction platform built from day one for NSFW-friendly
+          creators. Sub-second WebRTC bidding, no app-store gatekeepers,
+          no surprise bans, sellers keep more.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/sell"
+            className="rounded-full bg-accent px-5 py-3 text-sm font-bold text-white"
+          >
+            Start selling
+          </Link>
+          <Link
+            href="#live"
+            className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold"
+          >
+            Watch a show
+          </Link>
+        </div>
+      </section>
+
+      <section id="live" className="mx-auto max-w-6xl px-4 pb-12">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-paper/60">
           Live now
         </h2>
         {live.length === 0 ? (
-          <p className="text-paper/50">No streams live right now.</p>
+          <p className="text-paper/50">
+            No streams live right now. Check back soon — new shows kick off
+            throughout the day.
+          </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {live.map((s) => (
@@ -74,7 +119,7 @@ export default async function Home() {
         )}
       </section>
 
-      <section>
+      <section className="mx-auto max-w-6xl px-4 pb-20">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-paper/60">
           Scheduled
         </h2>
@@ -88,6 +133,11 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      <footer className="border-t border-white/5 px-4 py-8 text-center text-xs text-paper/40">
+        Indie Comics Live · 18+ · Adult-friendly Whatnot alternative for
+        comics and cards
+      </footer>
     </main>
   );
 }
@@ -101,7 +151,7 @@ function ShowCard({
     status: string;
     coverImageUrl: string | null;
     scheduledFor: Date | null;
-    seller?: { handle: string | null; name: string | null };
+    seller: { handle: string | null; name: string | null } | null;
   };
 }) {
   return (

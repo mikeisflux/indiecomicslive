@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { db, userPaymentMethods, users } from "@/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 import {
   addCustomerToVault,
   deleteVaultCustomer,
@@ -27,23 +26,19 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const rows = await db
-    .select({
-      id: userPaymentMethods.id,
-      cardBrand: userPaymentMethods.cardBrand,
-      cardLast4: userPaymentMethods.cardLast4,
-      cardExpMonth: userPaymentMethods.cardExpMonth,
-      cardExpYear: userPaymentMethods.cardExpYear,
-      isDefault: userPaymentMethods.isDefault,
-    })
-    .from(userPaymentMethods)
-    .where(
-      and(
-        eq(userPaymentMethods.userId, session.user.id),
-        isNull(userPaymentMethods.deletedAt),
-      ),
-    );
-  return NextResponse.json({ methods: rows });
+  const methods = await prisma.userPaymentMethod.findMany({
+    where: { userId: session.user.id, deletedAt: null },
+    select: {
+      id: true,
+      cardBrand: true,
+      cardLast4: true,
+      cardExpMonth: true,
+      cardExpYear: true,
+      isDefault: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return NextResponse.json({ methods });
 }
 
 export async function POST(req: Request) {
@@ -62,10 +57,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "nmi_not_configured" }, { status: 502 });
   }
 
-  const [user] = await db
-    .select({ email: users.email, name: users.name })
-    .from(users)
-    .where(eq(users.id, session.user.id));
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, name: true },
+  });
 
   const vaultResp = await addCustomerToVault(config, {
     paymentToken: parsed.data.paymentToken,
@@ -99,33 +94,30 @@ export async function POST(req: Request) {
     );
   }
 
-  // Mirror brand/last4 from the validation response for display.
   const cardBrand = validation.raw.cc_type ?? null;
   const cardLast4 = validation.raw.cc_number?.slice(-4) ?? null;
   const expRaw = validation.raw.cc_exp;
   const cardExpMonth = expRaw ? Number(expRaw.slice(0, 2)) : null;
-  const cardExpYear = expRaw
-    ? 2000 + Number(expRaw.slice(2, 4))
-    : null;
+  const cardExpYear = expRaw ? 2000 + Number(expRaw.slice(2, 4)) : null;
 
-  await db
-    .update(userPaymentMethods)
-    .set({ isDefault: false })
-    .where(eq(userPaymentMethods.userId, session.user.id));
-
-  const [row] = await db
-    .insert(userPaymentMethods)
-    .values({
-      userId: session.user.id,
-      processor: "nmi",
-      vaultId,
-      cardBrand,
-      cardLast4,
-      cardExpMonth,
-      cardExpYear,
-      isDefault: true,
-    })
-    .returning();
+  const row = await prisma.$transaction(async (tx) => {
+    await tx.userPaymentMethod.updateMany({
+      where: { userId: session.user.id },
+      data: { isDefault: false },
+    });
+    return await tx.userPaymentMethod.create({
+      data: {
+        userId: session.user.id,
+        processor: "nmi",
+        vaultId,
+        cardBrand,
+        cardLast4,
+        cardExpMonth,
+        cardExpYear,
+        isDefault: true,
+      },
+    });
+  });
 
   return NextResponse.json({
     method: {
