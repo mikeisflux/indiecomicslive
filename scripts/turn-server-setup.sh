@@ -36,6 +36,72 @@ SECRETS_DIR="/root/icl-secrets"
 log() { echo -e "\n\033[1;36m[turn-setup]\033[0m $*"; }
 
 # ---------------------------------------------------------------------------
+# 0. Full streamlick wipe — certs, nginx, app code, cron, PM2, DNS
+# ---------------------------------------------------------------------------
+log "wiping streamlick artifacts"
+
+# 0a. Reset DNS first so apt + certbot can resolve (Hetzner's in-network
+#     resolvers stay reachable even when 1.1.1.1 is blocked).
+mkdir -p /etc/systemd/resolved.conf.d
+cat >/etc/systemd/resolved.conf.d/icl.conf <<'CONF'
+[Resolve]
+DNS=185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8
+FallbackDNS=9.9.9.9
+DNSStubListener=yes
+CONF
+systemctl restart systemd-resolved 2>/dev/null || true
+cat >/etc/resolv.conf <<'CONF'
+nameserver 185.12.64.1
+nameserver 185.12.64.2
+nameserver 1.1.1.1
+CONF
+
+# 0b. PM2 (Streamlick used PM2 to keep turnserver alive)
+systemctl stop    pm2-root.service 2>/dev/null || true
+systemctl disable pm2-root.service 2>/dev/null || true
+systemctl mask    pm2-root.service 2>/dev/null || true
+command -v pm2 >/dev/null 2>&1 && pm2 kill 2>/dev/null || true
+rm -rf /root/.pm2 /home/*/.pm2 2>/dev/null || true
+rm -f /etc/systemd/system/pm2-*.service \
+      /etc/systemd/system/multi-user.target.wants/pm2-*.service 2>/dev/null
+
+# 0c. Streamlick systemd units (any name match)
+mapfile -t SLICK_UNITS < <(systemctl list-unit-files --no-legend 2>/dev/null \
+  | awk '{print $1}' | grep -iE 'streamlick|streamlik|stream-?lick' || true)
+for u in "${SLICK_UNITS[@]:-}"; do
+  [ -z "$u" ] && continue
+  systemctl stop    "$u" 2>/dev/null || true
+  systemctl disable "$u" 2>/dev/null || true
+done
+rm -f /etc/systemd/system/*streamlick*.service \
+      /etc/systemd/system/multi-user.target.wants/*streamlick*.service 2>/dev/null
+
+# 0d. Streamlick app code, /home, web roots
+for d in /opt/streamlick* /var/www/streamlick* /srv/streamlick* /home/streamlick*; do
+  [ -e "$d" ] && rm -rf "$d"
+done
+
+# 0e. nginx — remove any streamlick or streamlick-cert sites
+rm -f /etc/nginx/sites-available/*streamlick* /etc/nginx/sites-enabled/*streamlick* 2>/dev/null
+rm -f /etc/nginx/sites-enabled/default 2>/dev/null
+
+# 0f. Crontab
+crontab -l 2>/dev/null | grep -vi streamlick | crontab - 2>/dev/null || true
+
+# 0g. Let's Encrypt — wipe ANY cert dir for streamlick.com or its subdomains.
+#     We'll get a fresh one for turn.indiecomicslive.com later in the script.
+for base in /etc/letsencrypt/live /etc/letsencrypt/archive /etc/letsencrypt/renewal; do
+  [ -d "$base" ] || continue
+  find "$base" -maxdepth 1 -iname '*streamlick*' -exec rm -rf {} + 2>/dev/null
+done
+# Also clean renewal hooks that pointed at streamlick services
+rm -f /etc/letsencrypt/renewal-hooks/deploy/*streamlick* 2>/dev/null
+
+systemctl daemon-reload
+log "streamlick wipe done"
+
+
+# ---------------------------------------------------------------------------
 # 1. Kill any existing turnserver — aggressively
 # ---------------------------------------------------------------------------
 log "stopping any existing turnserver"
