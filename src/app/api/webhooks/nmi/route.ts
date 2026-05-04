@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { loadNmiConfig } from "@/lib/nmi";
+import { isIPBlocked, recordSuspiciousActivity } from "@/lib/bot-blocker";
+import { getClientIP, getUserAgent } from "@/lib/client-ip";
 
 // PaymentCloud / NMI webhook. Configure under
 // "Webhooks" in the merchant portal.
@@ -43,6 +45,11 @@ function verify(rawBody: string, header: string | null, secret: string) {
 }
 
 export async function POST(req: Request) {
+  const ip = getClientIP(req);
+  if (await isIPBlocked(ip)) {
+    return NextResponse.json({ error: "blocked" }, { status: 403 });
+  }
+
   const config = loadNmiConfig();
   if (!config?.webhookSecret) {
     return NextResponse.json({ error: "not_configured" }, { status: 502 });
@@ -55,6 +62,12 @@ export async function POST(req: Request) {
     req.headers.get("x-signature");
 
   if (!verify(raw, header, config.webhookSecret)) {
+    // Hitting our webhook without a valid signature is exploit-probe
+    // territory. 3 of these inside an hour and the IP is autobanned.
+    await recordSuspiciousActivity(ip, "nmi_webhook_bad_signature", {
+      path: "/api/webhooks/nmi",
+      userAgent: getUserAgent(req),
+    });
     return NextResponse.json({ error: "bad_signature" }, { status: 401 });
   }
 

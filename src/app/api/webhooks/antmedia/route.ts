@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { loadAntMediaConfig, verifyAntMediaWebhook } from "@/lib/antmedia";
+import { isIPBlocked, recordSuspiciousActivity } from "@/lib/bot-blocker";
+import { getClientIP, getUserAgent } from "@/lib/client-ip";
 
 // Ant Media stream webhook. Configure via "Stream Webhook" in the
 // admin panel. Body shape (typical):
 //   { id, action: "liveStreamStarted" | "liveStreamEnded" | ... }
 export async function POST(req: Request) {
+  const ip = getClientIP(req);
+  if (await isIPBlocked(ip)) {
+    return NextResponse.json({ error: "blocked" }, { status: 403 });
+  }
+
   const config = loadAntMediaConfig();
   if (!config) {
     return NextResponse.json(
@@ -17,6 +24,10 @@ export async function POST(req: Request) {
   const raw = await req.text();
   const sig = req.headers.get("x-ams-signature");
   if (!verifyAntMediaWebhook(raw, sig, config.webhookSecret)) {
+    await recordSuspiciousActivity(ip, "antmedia_webhook_bad_signature", {
+      path: "/api/webhooks/antmedia",
+      userAgent: getUserAgent(req),
+    });
     return NextResponse.json({ error: "bad_signature" }, { status: 401 });
   }
 

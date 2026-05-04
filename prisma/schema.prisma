@@ -493,3 +493,44 @@ model AuditLog {
   @@index([targetKind, targetId])
   @@map("audit_logs")
 }
+
+// Auto-banned IPs from the bot blocker. Distinct from IPBlocklist
+// (admin-initiated). Has a 24h expiration by default and tracks
+// violation count for repeat offenders. The botblock-watcher service
+// reads /tmp/botblock-pending every 5s and adds an iptables DROP
+// rule, so blocks land in the kernel firewall too.
+model BlockedIP {
+  id             String   @id @default(uuid()) @db.Uuid
+  ipAddress      String   @unique @map("ip_address")
+  reason         String
+  violationCount Int      @default(1) @map("violation_count")
+  blockedAt      DateTime @default(now()) @map("blocked_at")
+  expiresAt      DateTime @map("expires_at")
+
+  // Last-seen metadata for triage
+  lastUserAgent String? @map("last_user_agent")
+  lastPath      String? @map("last_path")
+  lastActionId  String? @map("last_action_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([ipAddress])
+  @@index([expiresAt])
+  @@map("blocked_ips")
+}
+
+// Audit log of detected suspicious behavior. Three hits within
+// SUSPICIOUS_WINDOW_MS escalates to a BlockedIP entry.
+model SuspiciousActivity {
+  id        String   @id @default(uuid()) @db.Uuid
+  ipAddress String   @map("ip_address")
+  reason    String
+  actionId  String?  @map("action_id")
+  path      String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ipAddress, createdAt])
+  @@map("suspicious_activity")
+}

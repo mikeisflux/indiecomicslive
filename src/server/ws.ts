@@ -4,12 +4,28 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { placeBid, closeLot } from "@/lib/auction";
 import { chargeOrder } from "@/lib/payments";
+import {
+  cleanupExpiredData,
+  isIPBlocked,
+  recordSuspiciousActivity,
+} from "@/lib/bot-blocker";
 
 const port = Number(process.env.WS_PORT ?? 3001);
 
 const wss = new WebSocketServer({ port });
 
-type ClientMeta = { userId?: string; showId?: string };
+function clientIP(req: import("http").IncomingMessage): string | null {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string") {
+    const first = fwd.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  const cf = req.headers["cf-connecting-ip"];
+  if (typeof cf === "string") return cf.trim();
+  return req.socket.remoteAddress ?? null;
+}
+
+type ClientMeta = { userId?: string; showId?: string; ip?: string };
 const clients = new Map<WebSocket, ClientMeta>();
 const rooms = new Map<string, Set<WebSocket>>();
 
@@ -57,14 +73,24 @@ const Inbound = z.discriminatedUnion("type", [
   }),
 ]);
 
-wss.on("connection", (ws) => {
-  clients.set(ws, {});
+wss.on("connection", async (ws, req) => {
+  const ip = clientIP(req);
+  if (await isIPBlocked(ip)) {
+    ws.send(JSON.stringify({ type: "error", reason: "blocked" }));
+    ws.close(1008, "blocked");
+    return;
+  }
+
+  clients.set(ws, { ip: ip ?? undefined });
 
   ws.on("message", async (raw) => {
     let msg: z.infer<typeof Inbound>;
     try {
       msg = Inbound.parse(JSON.parse(raw.toString()));
     } catch {
+      // Malformed payloads are noisy from real clients (clock skew,
+      // browser extensions injecting garbage) — only escalate on a
+      // clear pattern. Log but don't auto-ban from a single bad msg.
       ws.send(JSON.stringify({ type: "error", reason: "bad_message" }));
       return;
     }
@@ -105,6 +131,17 @@ wss.on("connection", (ws) => {
       });
 
       if (!result.ok) {
+        // Bidding rejection alone isn't suspicious, but a flurry of
+        // below-min-increment or already-high-bidder rejections from
+        // the same IP looks like a scripted bidder. Track it.
+        if (
+          result.reason === "below_min_increment" ||
+          result.reason === "already_high_bidder"
+        ) {
+          recordSuspiciousActivity(meta.ip ?? null, `bid_${result.reason}`, {
+            path: "ws/bid",
+          }).catch(() => {});
+        }
         ws.send(
           JSON.stringify({ type: "bid_rejected", reason: result.reason }),
         );
@@ -156,5 +193,17 @@ setInterval(async () => {
     }
   }
 }, 1000);
+
+// Hourly cleanup of expired BlockedIP rows + 7-day-old SuspiciousActivity.
+setInterval(
+  () => {
+    cleanupExpiredData().catch((err) =>
+      console.error("[ws] bot-blocker cleanup error", err),
+    );
+  },
+  60 * 60 * 1000,
+);
+// Run once at startup so a cold restart doesn't carry stale rows for an hour.
+cleanupExpiredData().catch(() => {});
 
 console.log(`[ws] listening on :${port}`);

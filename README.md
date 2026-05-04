@@ -233,6 +233,20 @@ When you materially change any of these, bump:
 - `lastUpdated` in `src/lib/legal.ts`
 - `AGREEMENT_VERSION` in `src/app/api/seller/applications/route.ts` so applicants re-prompt
 
+## Bot blocker
+
+Two-layer IP blocking ported from indiecrowdfund's `helpfulapps/botblock-firewall`:
+
+1. **App layer** (`src/lib/bot-blocker.ts`) — `recordSuspiciousActivity(ip, reason, meta)` writes to Postgres; 3 violations within an hour escalate to a 24-hour ban (`blocked_ips` table) plus a write to `/tmp/botblock-pending`.
+2. **Kernel layer** — the `botblock-watcher` systemd service polls that file every 5 seconds and adds iptables DROP rules. A `botblock-sync` cron reconciles iptables against the DB every 5 minutes as a safety net.
+
+Already wired in:
+- `/api/webhooks/nmi` and `/api/webhooks/antmedia` record suspicious activity on bad signatures.
+- `src/server/ws.ts` rejects WebSocket connections from blocked IPs (close code 1008) and tracks bid abuse patterns.
+- `/admin/bot-block` shows the active block list + recent suspicious activity, with one-click unblock.
+
+Production server install: see `docs/runbooks/bot-blocker-setup.md`.
+
 ## Admin section (`/admin`)
 
 Role-gated control center. Only users with role `admin` or `super_admin` can access; everyone else gets redirected.

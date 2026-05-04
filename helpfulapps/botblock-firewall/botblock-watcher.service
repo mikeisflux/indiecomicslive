@@ -1,0 +1,19 @@
+[Unit]
+Description=BotBlock Watcher (Indie Comics Live) — instant kernel firewall blocking
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/botblock-watcher
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/botblock-watcher.log
+StandardError=append:/var/log/botblock-watcher.log
+
+# Hardening — needs CAP_NET_ADMIN for iptables
+NoNewPrivileges=no
+ProtectSystem=strict
+ReadWritePaths=/tmp /var/log
+
+[Install]
+WantedBy=multi-user.target
