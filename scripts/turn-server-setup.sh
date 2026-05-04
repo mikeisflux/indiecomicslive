@@ -190,33 +190,22 @@ fi
 # 4. DNS check — bail clearly if turn.indiecomicslive.com isn't pointing here
 # ---------------------------------------------------------------------------
 log "checking DNS for $TURN_HOST"
-# Try multiple resolvers — Hetzner's in-network ones first since they're
-# always reachable from Hetzner boxes, public ones as fallback.
-resolve() {
-  local kind="$1" name="$2" raw out=""
-  local re_v4='^[0-9]{1,3}(\.[0-9]{1,3}){3}$'
-  local re_v6='^[0-9a-fA-F:]+$'
-  local re; [ "$kind" = "AAAA" ] && re="$re_v6" || re="$re_v4"
-  # System resolver (now points at Hetzner DNS via /etc/resolv.conf)
-  raw=$(getent ahosts "$name" 2>/dev/null || true)
-  if [ -n "$raw" ]; then
-    if [ "$kind" = "A" ]; then
-      out=$(echo "$raw" | awk '$1 !~ /:/ {print $1; exit}')
-    else
-      out=$(echo "$raw" | awk '$1 ~  /:/ {print $1; exit}')
-    fi
-    [ -n "$out" ] && [[ "$out" =~ $re ]] && { echo "$out"; return; }
-  fi
-  # Direct queries
-  for resolver in 185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8 9.9.9.9; do
-    raw=$(dig +short +time=3 +tries=1 -t "$kind" "$name" @"$resolver" 2>/dev/null || true)
-    out=$(echo "$raw" | grep -E "$re" | head -1 || true)
-    [ -n "$out" ] && { echo "$out"; return 0; }
-  done
-  return 0   # don't fail the script when nothing resolves; caller handles empty result
-}
-RESOLVED_V4="$(resolve A    "$TURN_HOST" || true)"
-RESOLVED_V6="$(resolve AAAA "$TURN_HOST" || true)"
+# Disable set -e for the DNS check — pipefail + grep-no-match was killing
+# the script silently. Try Hetzner's resolver first (always reachable from
+# Hetzner boxes), then public ones.
+set +e
+RESOLVED_V4=""
+RESOLVED_V6=""
+for r in 185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8 9.9.9.9; do
+  [ -z "$RESOLVED_V4" ] && \
+    RESOLVED_V4=$(dig +short +time=3 +tries=1 -t A "$TURN_HOST" @"$r" 2>/dev/null \
+                  | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | head -1)
+  [ -z "$RESOLVED_V6" ] && \
+    RESOLVED_V6=$(dig +short +time=3 +tries=1 -t AAAA "$TURN_HOST" @"$r" 2>/dev/null \
+                  | grep -E '^[0-9a-fA-F:]+$' | head -1)
+  [ -n "$RESOLVED_V4" ] && [ -n "$RESOLVED_V6" ] && break
+done
+set -e
 
 if [ "$RESOLVED_V4" != "$PUBLIC_IPV4" ]; then
   cat <<EOF >&2
