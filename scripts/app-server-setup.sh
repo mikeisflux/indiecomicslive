@@ -156,7 +156,7 @@ if ! id -u "$APP_USER" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$APP_USER"
 fi
 
-mkdir -p "$APP_DIR" /var/log/indiecomicslive "$SECRETS_DIR"
+mkdir -p /var/log/indiecomicslive "$SECRETS_DIR"
 chown -R "$APP_USER:$APP_USER" /var/log/indiecomicslive
 chmod 700 "$SECRETS_DIR"
 
@@ -182,6 +182,8 @@ ufw --force enable         >/dev/null 2>&1 || true
 if [ ! -d "$APP_DIR/.git" ]; then
   log "cloning $GIT_REPO into $APP_DIR ($GIT_BRANCH)"
   rm -rf "$APP_DIR"
+  mkdir -p "$APP_DIR"
+  chown "$APP_USER:$APP_USER" "$APP_DIR"
   sudo -u "$APP_USER" git clone --branch "$GIT_BRANCH" "$GIT_REPO" "$APP_DIR"
 else
   log "repo exists; fetching latest on $GIT_BRANCH"
