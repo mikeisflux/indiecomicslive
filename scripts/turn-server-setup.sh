@@ -124,8 +124,23 @@ fi
 # 4. DNS check — bail clearly if turn.indiecomicslive.com isn't pointing here
 # ---------------------------------------------------------------------------
 log "checking DNS for $TURN_HOST"
-RESOLVED_V4="$(dig +short -t A   "$TURN_HOST" @1.1.1.1 | tail -1)"
-RESOLVED_V6="$(dig +short -t AAAA "$TURN_HOST" @1.1.1.1 | tail -1)"
+# Try multiple resolvers — some hosts block 1.1.1.1 outbound
+resolve() {
+  local kind="$1" name="$2" out=""
+  for resolver in 1.1.1.1 8.8.8.8 9.9.9.9 ""; do
+    if [ -z "$resolver" ]; then
+      out=$(getent ahosts "$name" 2>/dev/null | awk -v k="$kind" '
+        k=="A"    && /STREAM/ && $1 !~ ":" {print $1; exit}
+        k=="AAAA" && /STREAM/ && $1 ~  ":" {print $1; exit}
+      ')
+    else
+      out=$(dig +short +time=3 +tries=1 -t "$kind" "$name" @"$resolver" 2>/dev/null | tail -1)
+    fi
+    [ -n "$out" ] && { echo "$out"; return; }
+  done
+}
+RESOLVED_V4="$(resolve A    "$TURN_HOST")"
+RESOLVED_V6="$(resolve AAAA "$TURN_HOST")"
 
 if [ "$RESOLVED_V4" != "$PUBLIC_IPV4" ]; then
   cat <<EOF >&2
