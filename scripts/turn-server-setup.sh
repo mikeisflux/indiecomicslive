@@ -40,15 +40,31 @@ log() { echo -e "\n\033[1;36m[turn-setup]\033[0m $*"; }
 # ---------------------------------------------------------------------------
 log "stopping any existing turnserver"
 
-# Mask + stop every unit that could respawn it. mask symlinks the unit
-# to /dev/null so even Restart= directives + socket activation can't
-# bring it back. We unmask coturn just before we start it ourselves at
-# the end of the script.
+# Streamlick used PM2 to keep turnserver alive — PM2 has its own daemon
+# (pm2-root.service) that respawns processes from a saved list, completely
+# outside systemd's control. mask + kill the systemd units AND the PM2
+# daemon AND wipe PM2's saved process list, otherwise turnserver respawns
+# in a fraction of a second.
+log "killing PM2 (Streamlick respawn loop) if present"
+systemctl stop    pm2-root.service 2>/dev/null || true
+systemctl disable pm2-root.service 2>/dev/null || true
+systemctl mask    pm2-root.service 2>/dev/null || true
+command -v pm2 >/dev/null 2>&1 && pm2 kill 2>/dev/null || true
+rm -rf /root/.pm2 /home/*/.pm2 2>/dev/null || true
+rm -f /etc/systemd/system/pm2-*.service \
+      /etc/systemd/system/multi-user.target.wants/pm2-*.service 2>/dev/null
+
+# Mask + stop every systemd unit that could respawn it. mask symlinks
+# the unit to /dev/null so even Restart= directives + socket activation
+# can't bring it back. We unmask coturn just before we start it
+# ourselves at the end of the script.
 for u in coturn.service turnserver.service turn.service coturn.socket; do
   systemctl stop    "$u" 2>/dev/null || true
   systemctl disable "$u" 2>/dev/null || true
   systemctl mask    "$u" 2>/dev/null || true
 done
+
+systemctl daemon-reload
 
 # Make sure psmisc (fuser) is available
 command -v fuser >/dev/null 2>&1 || apt-get install -y -qq psmisc >/dev/null 2>&1 || true
@@ -70,12 +86,18 @@ sleep 2
 
 # Final verification
 if ss -tulnH 2>/dev/null | awk '{print $5}' | grep -E ':(3478|5349)$' | grep -q .; then
-  echo "ERROR: ports 3478/5349 still bound after kill + mask:"
+  echo "ERROR: ports 3478/5349 still bound after kill + mask + PM2 nuke:"
   ss -tulnp | grep -E ':3478|:5349'
   echo
   echo "Look for unusual auto-restart sources:"
-  systemctl list-units --no-legend --all | grep -iE 'turn|coturn' || true
-  ls /etc/init.d/ 2>/dev/null | grep -iE 'turn|coturn' || true
+  systemctl list-units --no-legend --all | grep -iE 'turn|coturn|pm2' || true
+  ls /etc/init.d/ 2>/dev/null | grep -iE 'turn|coturn|pm2' || true
+  PID=$(pgrep -f /usr/bin/turnserver | head -1)
+  if [ -n "$PID" ]; then
+    echo
+    echo "cgroup of pid $PID:"
+    cat /proc/$PID/cgroup 2>/dev/null
+  fi
   exit 1
 fi
 log "ports 3478 + 5349 are free"
