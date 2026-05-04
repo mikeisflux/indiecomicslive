@@ -40,6 +40,93 @@ PUBLIC_IPV4="157.180.39.56"
 log() { echo -e "\n\033[1;34m[setup]\033[0m $*"; }
 
 # ---------------------------------------------------------------------------
+# 0. Wipe streamlick + old database (this box was a streamlick app server)
+# ---------------------------------------------------------------------------
+log "Phase 0 — wiping streamlick artifacts"
+
+# Stop + disable any streamlick services (case-insensitive match)
+mapfile -t SLICK_UNITS < <(systemctl list-unit-files --no-legend 2>/dev/null \
+  | awk '{print $1}' | grep -iE 'streamlick|streamlik|stream-?lick' || true)
+for u in "${SLICK_UNITS[@]:-}"; do
+  [ -z "$u" ] && continue
+  log "  stopping + disabling $u"
+  systemctl stop "$u"    2>/dev/null || true
+  systemctl disable "$u" 2>/dev/null || true
+done
+
+# Remove streamlick systemd unit files
+rm -f /etc/systemd/system/*streamlick*.service \
+      /etc/systemd/system/multi-user.target.wants/*streamlick*.service \
+      /lib/systemd/system/*streamlick*.service 2>/dev/null || true
+systemctl daemon-reload
+
+# Remove streamlick application directories
+for d in /opt/streamlick* /var/www/streamlick* /srv/streamlick* /home/streamlick*; do
+  if [ -e "$d" ]; then
+    log "  rm -rf $d"
+    rm -rf "$d"
+  fi
+done
+
+# Catch-all: anything else streamlick-named under common locations
+mapfile -t SLICK_LEFTOVERS < <(find /opt /var/www /srv /etc/nginx /etc/systemd /etc/cron.d /home /root \
+  -maxdepth 4 -iname '*streamlick*' 2>/dev/null || true)
+for f in "${SLICK_LEFTOVERS[@]:-}"; do
+  [ -z "$f" ] && continue
+  log "  rm -rf $f"
+  rm -rf "$f"
+done
+
+# Remove streamlick nginx sites + reset to clean state
+rm -f /etc/nginx/sites-available/*streamlick* /etc/nginx/sites-enabled/*streamlick* 2>/dev/null
+rm -f /etc/nginx/sites-enabled/default 2>/dev/null
+
+# Strip streamlick lines from root crontab
+if crontab -l 2>/dev/null | grep -qi streamlick; then
+  log "  stripping streamlick from root crontab"
+  crontab -l 2>/dev/null | grep -vi streamlick | crontab -
+fi
+
+# Drop the old database (local Postgres was streamlick's). The new app
+# uses an external DATABASE_URL (Neon / managed), so we don't need a
+# local Postgres on this box.
+if systemctl list-units --type=service --all 2>/dev/null | grep -qE '^\s*postgresql'; then
+  log "  wiping local Postgres (was streamlick's)"
+  systemctl stop postgresql 2>/dev/null || true
+  systemctl disable postgresql 2>/dev/null || true
+  apt-get purge -y 'postgresql*' 2>/dev/null || true
+  apt-get autoremove -y 2>/dev/null || true
+  rm -rf /var/lib/postgresql /etc/postgresql /var/log/postgresql
+fi
+
+# Drop Redis if streamlick used it (we don't)
+if systemctl is-active --quiet redis-server 2>/dev/null \
+   || systemctl is-active --quiet redis 2>/dev/null; then
+  log "  wiping local Redis"
+  systemctl stop redis-server redis 2>/dev/null || true
+  apt-get purge -y 'redis*' 2>/dev/null || true
+  rm -rf /var/lib/redis /etc/redis /var/log/redis
+fi
+
+# Remove the streamlick user if one existed
+if id streamlick >/dev/null 2>&1; then
+  log "  userdel streamlick"
+  pkill -u streamlick 2>/dev/null || true
+  sleep 1
+  userdel -rf streamlick 2>/dev/null || true
+fi
+
+# Old Let's Encrypt certs for streamlick hostnames — orphan files only,
+# the hostname itself is going away. Snapshot already covers rollback.
+for d in /etc/letsencrypt/live/*streamlick* /etc/letsencrypt/archive/*streamlick* /etc/letsencrypt/renewal/*streamlick*; do
+  [ -e "$d" ] || continue
+  log "  rm -rf $d"
+  rm -rf "$d"
+done
+
+log "Phase 0 done — streamlick artifacts removed"
+
+# ---------------------------------------------------------------------------
 # 1. apt + base packages
 # ---------------------------------------------------------------------------
 log "apt update + base packages"
