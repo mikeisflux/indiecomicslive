@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 
 export type AdminRole = "admin" | "super_admin";
 
@@ -59,7 +60,9 @@ export async function logAudit(opts: {
       action: opts.action,
       targetKind: opts.targetKind,
       targetId: opts.targetId,
-      metadata: opts.metadata ? (opts.metadata as never) : null,
+      metadata: opts.metadata
+        ? (opts.metadata as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
       ip: opts.ip ?? null,
     },
   });
