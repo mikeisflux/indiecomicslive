@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus } from "@/generated/prisma";
 
 export const dynamic = "force-dynamic";
 

@@ -2,13 +2,15 @@
 // PG17 target. Run `npm run db:generate` to regenerate the client,
 // `npm run db:migrate` to author + apply a migration in dev.
 
+// Prisma 7: client output is project-local, datasource url moves to
+// prisma.config.ts so the schema is purely declarative.
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
