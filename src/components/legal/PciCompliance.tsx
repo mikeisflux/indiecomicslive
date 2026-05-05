@@ -5,11 +5,11 @@ export default function PciCompliance() {
     <Doc slug="pci">
       <h2>1. Card Data Never Touches Our Servers</h2>
       <p>
-        We use PaymentCloud&rsquo;s CollectJS to tokenize cards inside the
-        bidder&rsquo;s browser. The PAN (full card number), CVV, and
-        expiration are submitted directly from the bidder&rsquo;s browser to
-        PaymentCloud&rsquo;s servers. Our servers receive only a single-use
-        payment token, which we exchange for a Customer Vault id used for
+        We use Divinity Payments&rsquo; secure tokenization to tokenize cards
+        inside the bidder&rsquo;s browser. The PAN (full card number), CVV,
+        and expiration are submitted directly from the bidder&rsquo;s browser
+        to Divinity Payments&rsquo; servers. Our servers receive only a
+        single-use payment token, which we exchange for a vault id used for
         future merchant-initiated charges.
       </p>
       <p>
@@ -23,7 +23,7 @@ export default function PciCompliance() {
         <li>Card brand (Visa, Mastercard, etc.);</li>
         <li>Last 4 digits of the card;</li>
         <li>Expiration month and year;</li>
-        <li>PaymentCloud Customer Vault id (a token, not a card number);</li>
+        <li>Divinity Payments vault id (a token, not a card number);</li>
         <li>Successful transaction ids for our internal records.</li>
       </ul>
 
@@ -38,7 +38,7 @@ export default function PciCompliance() {
       <ul>
         <li>TLS 1.2+ everywhere;</li>
         <li>HSTS, secure cookies, strict same-site;</li>
-        <li>Webhook signature verification on PaymentCloud and streaming events;</li>
+        <li>Webhook signature verification on Divinity Payments and streaming events;</li>
         <li>Rate limiting on auth and high-write endpoints.</li>
       </ul>
 

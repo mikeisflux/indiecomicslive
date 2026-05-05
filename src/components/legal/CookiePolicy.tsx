@@ -8,7 +8,7 @@ export default function CookiePolicy() {
         <li>
           <strong>Strictly necessary:</strong> session authentication
           (Auth.js), CSRF protection, age-gate confirmation, payment-form
-          tokenization (CollectJS / PaymentCloud);
+          tokenization (Divinity Payments);
         </li>
         <li>
           <strong>Functional:</strong> remembering your preferred handle,
@@ -40,9 +40,9 @@ export default function CookiePolicy() {
 
       <h2>4. Third Parties</h2>
       <p>
-        We embed scripts from PaymentCloud (for card tokenization) and Ant
-        Media (for video). These services may set their own cookies for the
-        duration of the request.
+        We embed scripts from Divinity Payments (for card tokenization) and
+        Ant Media (for video). These services may set their own cookies for
+        the duration of the request.
       </p>
     </Doc>
   );

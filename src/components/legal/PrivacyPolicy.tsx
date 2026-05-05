@@ -20,8 +20,8 @@ export default function PrivacyPolicy() {
         <li>Government-issued ID (sellers only, for KYC);</li>
         <li>Bank account information (sellers only, for payouts);</li>
         <li>
-          Card details handled exclusively by PaymentCloud&rsquo;s tokenization
-          (CollectJS) &mdash; we never receive or store full card numbers
+          Card details handled exclusively by Divinity Payments&rsquo; secure
+          tokenization &mdash; we never receive or store full card numbers
           (PCI SAQ-A scope);
         </li>
         <li>
@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
       <h3>C. Information from third parties</h3>
       <ul>
         <li>
-          Payment processors (PaymentCloud / NMI) return transaction status
+          Payment processors (Divinity Payments) return transaction status
           and limited card metadata (brand, last 4, expiry);
         </li>
         <li>Identity verification providers return KYC outcomes for sellers;</li>
@@ -67,7 +67,7 @@ export default function PrivacyPolicy() {
       <p>We may share information with:</p>
       <ul>
         <li>
-          <strong>Payment processors</strong> (PaymentCloud / NMI) to process
+          <strong>Payment processors</strong> (Divinity Payments) to process
           transactions;
         </li>
         <li>
@@ -109,7 +109,7 @@ export default function PrivacyPolicy() {
           Encryption at rest for sensitive seller PII (bank account details
           via AES-256-GCM);
         </li>
-        <li>Card PANs never touch our servers (PaymentCloud CollectJS);</li>
+        <li>Card PANs never touch our servers (Divinity Payments tokenization);</li>
         <li>Access controls and audit logging on admin actions;</li>
         <li>Regular security review.</li>
       </ul>

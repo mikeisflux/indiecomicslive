@@ -15,7 +15,7 @@ export default function FraudPolicy() {
 
       <h2>2. How We Detect It</h2>
       <ul>
-        <li>Payment-processor risk signals from PaymentCloud / NMI;</li>
+        <li>Payment-processor risk signals from Divinity Payments;</li>
         <li>IP, device, and behavioral fingerprinting;</li>
         <li>Cross-account graph analysis on bidder-seller-shipping triples;</li>
         <li>KYC document review for sellers (manual + automated);</li>

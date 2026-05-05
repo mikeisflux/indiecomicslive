@@ -19,9 +19,9 @@ export default function BidderAgreement() {
 
       <h2>2. Saved-Card Authorization (MIT)</h2>
       <p>
-        To bid, you must save a payment method via PaymentCloud&rsquo;s
-        CollectJS tokenization. By saving a card, you authorize Divinity
-        Comics Inc., through PaymentCloud, to charge that card automatically
+        To bid, you must save a payment method via Divinity Payments&rsquo;
+        secure tokenization. By saving a card, you authorize Divinity Comics
+        Inc., through Divinity Payments, to charge that card automatically
         whenever you win a lot. This is a{" "}
         <strong>merchant-initiated transaction</strong> with credential-on-file
         flags consistent with card-network rules.

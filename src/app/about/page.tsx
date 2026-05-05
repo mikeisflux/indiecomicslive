@@ -85,8 +85,8 @@ export default function AboutPage() {
             Divinity Comics Inc. Divinity Comics Inc. is the legal operator,
             the merchant of record, and the corporate entity whose Indiana
             registration governs these Services. All seller payouts, refund
-            issuance, and chargeback recoup happen through PaymentCloud
-            (NMI) under the Divinity Comics Inc. merchant account.
+            issuance, and chargeback recoup happen through Divinity Payments
+            under the Divinity Comics Inc. merchant account.
           </p>
           <p>
             Because we&rsquo;re a nonprofit, our revenue covers operations,
@@ -110,9 +110,9 @@ export default function AboutPage() {
               .
             </li>
             <li>
-              <strong>Card data never touches our servers.</strong> All
-              card tokenization happens in your browser via PaymentCloud&rsquo;s
-              CollectJS. We hold a vault token, not a card number. See{" "}
+              <strong>Card data never touches our servers.</strong> All card
+              tokenization happens in your browser via Divinity Payments. We
+              hold a vault token, not a card number. See{" "}
               <Link href="/legal/pci" className="text-accent hover:underline">
                 PCI Compliance
               </Link>

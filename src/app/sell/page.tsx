@@ -24,7 +24,7 @@ const faqJsonLd = {
       name: "Is adult content allowed?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Indie Comics Live was built from day one to support adult-friendly creators. We use a high-risk-friendly payment processor (PaymentCloud / NMI) and self-hosted streaming infrastructure (Ant Media) so you don't have to worry about surprise account bans.",
+        text: "Yes. Indie Comics Live was built from day one to support adult-friendly creators. We use a high-risk-friendly payment processor (Divinity Payments) and self-hosted streaming infrastructure (Ant Media) so you don't have to worry about surprise account bans.",
       },
     },
     {
@@ -48,7 +48,7 @@ const faqJsonLd = {
       name: "How does payment work?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Bidders save a card once via a PCI-compliant tokenized form. When they win an auction, we automatically charge their saved card. Payouts to sellers go through PaymentCloud's settlement on a rolling schedule.",
+        text: "Bidders save a card once via a PCI-compliant tokenized form. When they win an auction, we automatically charge their saved card. Payouts to sellers settle through Divinity Payments on a rolling schedule.",
       },
     },
   ],
@@ -99,7 +99,7 @@ export default function SellLanding() {
         <section id="why" className="mt-16 grid gap-6 sm:grid-cols-3">
           <Card
             title="Adult-friendly"
-            body="High-risk-friendly payment processor (PaymentCloud / NMI) and self-hosted streaming (Ant Media). Your account isn't going to disappear because of a content review."
+            body="High-risk-friendly payment processor (Divinity Payments) and self-hosted streaming (Ant Media). Your account isn't going to disappear because of a content review."
           />
           <Card
             title="Sub-second bidding"
@@ -111,7 +111,7 @@ export default function SellLanding() {
           />
           <Card
             title="Real seller payouts"
-            body="Settle through PaymentCloud's rolling-reserve model. We don't hold funds longer than necessary."
+            body="Settle through Divinity Payments on a rolling schedule. We don't hold funds longer than necessary."
           />
           <Card
             title="Soft-close anti-snipe"

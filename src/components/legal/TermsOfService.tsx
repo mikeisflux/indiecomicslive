@@ -110,6 +110,9 @@ export default function TermsOfService() {
         may vary by category.
       </p>
 
+      {/* PaymentCloud-specific Rolling Reserve section — hidden while
+          Divinity Payments is the active processor. Restore if PaymentCloud
+          is brought back online.
       <h3>6a. PaymentCloud Rolling Reserve</h3>
       <p>
         PaymentCloud is the merchant processor of record for Indie Comics Live.
@@ -144,6 +147,7 @@ export default function TermsOfService() {
           remaining reserve is released.
         </li>
       </ul>
+      */}
 
       <h2>7. Seller Verification &amp; Due Diligence</h2>
       <p>
@@ -165,8 +169,8 @@ export default function TermsOfService() {
         </li>
         <li>
           <strong>Payout verification:</strong> Sellers must complete
-          PaymentCloud bank-account setup and place a chargeback recovery card
-          on file.
+          Divinity Payments bank-account setup and place a chargeback recovery
+          card on file.
         </li>
       </ul>
       <p>

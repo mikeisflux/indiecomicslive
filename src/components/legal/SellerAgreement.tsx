@@ -82,8 +82,8 @@ export default function SellerAgreement() {
         </li>
         <li>
           <strong>Payment account verification:</strong> Complete
-          PaymentCloud bank-account setup and place a chargeback recovery card
-          on file.
+          Divinity Payments bank-account setup and place a chargeback recovery
+          card on file.
         </li>
       </ul>
       <p>
@@ -112,7 +112,7 @@ export default function SellerAgreement() {
       <h2>7. Chargeback Recovery</h2>
       <p>
         You agree to keep a chargeback recovery card on file. If a chargeback
-        occurs and your rolling reserve is insufficient, Divinity Comics Inc.
+        occurs and your pending payouts are insufficient, Divinity Comics Inc.
         may charge that card to recoup the loss. See the{" "}
         <a href="/legal/chargebacks">Chargebacks Policy</a> for full details.
       </p>

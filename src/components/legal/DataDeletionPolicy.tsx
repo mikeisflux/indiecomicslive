@@ -14,7 +14,7 @@ export default function DataDeletionPolicy() {
       <ul>
         <li>Bio, location, social links, profile image, banner;</li>
         <li>Saved addresses (kept on shipped orders only as needed);</li>
-        <li>Saved payment methods (vault entries are deleted from PaymentCloud);</li>
+        <li>Saved payment methods (vault entries are deleted from Divinity Payments);</li>
         <li>OAuth tokens and connected-app credentials;</li>
         <li>Chat presence, follow lists, draft listings, watch lists;</li>
         <li>Email subscriptions.</li>
@@ -29,7 +29,7 @@ export default function DataDeletionPolicy() {
         <li>
           <strong>Order records:</strong> Buyer/seller name, email, item
           purchased, amount, transaction id &mdash; retained for 7 years per
-          IRS and PaymentCloud audit requirements;
+          IRS and Divinity Payments audit requirements;
         </li>
         <li>
           <strong>KYC documentation</strong> (sellers): retained for the

@@ -27,19 +27,19 @@ export default function ChargebacksPolicy() {
       </p>
       <ul>
         <li>The disputed amount is reversed from the seller&rsquo;s pending payouts;</li>
-        <li>PaymentCloud assesses a chargeback fee that is passed through to the seller;</li>
-        <li>If the rolling reserve is insufficient, the seller&rsquo;s on-file chargeback recovery card is debited;</li>
+        <li>Divinity Payments assesses a chargeback fee that is passed through to the seller;</li>
+        <li>If pending payouts are insufficient, the seller&rsquo;s on-file chargeback recovery card is debited;</li>
         <li>Multiple unjustified chargebacks against a seller may trigger an account review.</li>
       </ul>
 
       <h2>4. Seller Chargeback Recovery Card</h2>
       <p>
         Every approved Seller must keep a chargeback recovery card on file
-        via PaymentCloud&rsquo;s Customer Vault. The PAN never touches our
-        servers &mdash; only a vault reference. By saving this card, the
-        Seller authorizes Divinity Comics Inc., through PaymentCloud, to
-        charge the card for chargeback losses, related fees, and any
-        platform fees that cannot be netted from pending payouts.
+        via Divinity Payments&rsquo; vault. The PAN never touches our servers
+        &mdash; only a vault reference. By saving this card, the Seller
+        authorizes Divinity Comics Inc., through Divinity Payments, to charge
+        the card for chargeback losses, related fees, and any platform fees
+        that cannot be netted from pending payouts.
       </p>
 
       <h2>5. Disputed Chargebacks</h2>
