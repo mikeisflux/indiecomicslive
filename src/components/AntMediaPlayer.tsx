@@ -52,7 +52,7 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    let adaptor: ReturnType<WebRtcAdaptorCtor> | null = null;
+    let adaptor: InstanceType<WebRtcAdaptorCtor> | null = null;
 
     async function start() {
       const [tokenR, iceR] = await Promise.all([

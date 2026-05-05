@@ -36,7 +36,7 @@ type Props = {
 // seller can still use OBS via the RTMP URL shown in their dashboard.
 export default function AntMediaPublisher({ showId }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const adaptorRef = useRef<ReturnType<WebRtcAdaptorCtor> | null>(null);
+  const adaptorRef = useRef<InstanceType<WebRtcAdaptorCtor> | null>(null);
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
