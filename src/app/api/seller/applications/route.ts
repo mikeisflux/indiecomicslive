@@ -8,6 +8,26 @@ import { Prisma, SellerApplicationStatus } from "@/generated/prisma";
 // Agreement / NSFW Policy materially change so we re-prompt.
 export const AGREEMENT_VERSION = "2026-05-01";
 
+// Accept anything URL-ish: 'blah.com', 'www.blah.com', 'http://blah.com',
+// 'https://Blah.Com/path?x=1', etc. Trim, treat empty as undefined,
+// prepend https:// if no scheme, then validate with the URL constructor.
+function coerceUrl(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  if (!t) return undefined;
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(withScheme);
+    // Reject obvious garbage like 'https://abc' (no dot in host)
+    if (!u.hostname.includes(".")) return undefined;
+    return u.toString();
+  } catch {
+    return undefined;
+  }
+}
+const flexUrl = z.preprocess(coerceUrl, z.string().url().optional());
+
 const Body = z.object({
   legalFirstName: z.string().min(1).max(100),
   legalLastName: z.string().min(1).max(100),
@@ -25,18 +45,18 @@ const Body = z.object({
   storeBio: z.string().min(20).max(2000),
   businessFilingState: z.string().max(100).optional(),
   businessFilingNumber: z.string().max(100).optional(),
-  businessFilingUrl: z.string().url().optional(),
+  businessFilingUrl: flexUrl,
   taxIdLast4: z.string().regex(/^\d{4}$/).optional(),
 
-  primaryWebsite: z.string().url().optional(),
+  primaryWebsite: flexUrl,
   socialLinks: z
     .object({
-      twitter: z.string().url().optional(),
-      instagram: z.string().url().optional(),
-      youtube: z.string().url().optional(),
-      tiktok: z.string().url().optional(),
-      bluesky: z.string().url().optional(),
-      website: z.string().url().optional(),
+      twitter: flexUrl,
+      instagram: flexUrl,
+      youtube: flexUrl,
+      tiktok: flexUrl,
+      bluesky: flexUrl,
+      website: flexUrl,
     })
     .partial()
     .optional(),
@@ -44,7 +64,10 @@ const Body = z.object({
     .array(
       z.object({
         platform: z.string().max(50),
-        profileUrl: z.string().url(),
+        profileUrl: z.preprocess(
+          coerceUrl,
+          z.string().url({ message: "must be a valid URL" }),
+        ),
         campaignsLaunched: z.number().int().nonnegative().optional(),
         unfulfilled: z.number().int().nonnegative().optional(),
         notes: z.string().max(500).optional(),
@@ -65,6 +88,26 @@ const Body = z.object({
 
 // Three-or-more-unfulfilled / 1-year-past-delivery rule from
 // indiecrowdfund's creator agreement, adapted for our auction context.
+// HEAD request with a short timeout. Returns true if the server
+// responded with anything, false on network error / timeout. We don't
+// care about the status code — even a 403 means the host exists.
+async function checkReachable(url: string): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: ctrl.signal,
+      headers: { "user-agent": "indiecomicslive-seller-verify/1.0" },
+    });
+    clearTimeout(t);
+    return r.status > 0;
+  } catch {
+    return false;
+  }
+}
+
 function autoDisqualify(input: z.infer<typeof Body>): string | null {
   const unfulfilled = input.unfulfilledCount ?? 0;
   if (unfulfilled >= 3) {
@@ -114,6 +157,20 @@ export async function POST(req: Request) {
   const age = (now.getTime() - dob.getTime()) / (365.25 * 24 * 3600 * 1000);
   if (age < 18) {
     return NextResponse.json({ error: "must_be_18" }, { status: 400 });
+  }
+
+  // Reachability sanity-check on the seller's primary website. Soft —
+  // log the result for admin review, don't block submission. Most
+  // social URLs (twitter/instagram/etc.) intentionally block bots so
+  // we don't bother checking those.
+  if (parsed.data.primaryWebsite) {
+    void checkReachable(parsed.data.primaryWebsite).then((ok) => {
+      console.log("[seller-apply] primaryWebsite reachable?", {
+        url: parsed.data.primaryWebsite,
+        ok,
+        userId: session.user.id,
+      });
+    });
   }
 
   const data = {
