@@ -50,8 +50,11 @@ export async function POST(
           reviewerNotes: parsed.data.reviewerNotes,
         },
       });
-      await tx.user.update({
-        where: { id: app.userId },
+      // Only promote — never downgrade an existing admin/super_admin who
+      // happens to be applying with the same account. updateMany with a
+      // filtered where is a no-op when the row doesn't match.
+      await tx.user.updateMany({
+        where: { id: app.userId, role: "viewer" },
         data: { role: "seller" },
       });
       await tx.seller.upsert({
