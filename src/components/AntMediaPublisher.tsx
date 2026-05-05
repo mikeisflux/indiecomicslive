@@ -55,7 +55,7 @@ export default function AntMediaPublisher({ showId }: Props) {
       debug: false,
       callback: (info) => {
         if (info === "initialized") {
-          adaptorRef.current?.publish(streamId, publishToken);
+          adaptorRef.current?.publish?.(streamId, publishToken);
         } else if (info === "publish_started") {
           setStatus("live");
         } else if (info === "publish_finished") {

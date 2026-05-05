@@ -61,7 +61,7 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
         debug: false,
         callback: (info) => {
           if (info === "initialized") {
-            adaptor?.play(streamId, playToken);
+            adaptor?.play?.(streamId, playToken);
           } else if (info === "play_started") {
             setWaiting(false);
             setError(null);
