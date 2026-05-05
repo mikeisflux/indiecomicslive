@@ -45,6 +45,28 @@ enum OrderStatus {
 
 enum PaymentProcessor {
   nmi
+  divinitycoin
+}
+
+// Singleton row keyed by id="default". Holds platform-wide settings
+// the admin can flip from /admin/settings — currently used to switch
+// the active payment processor between NMI (PaymentCloud) and
+// DivinityCoin, and to store DC API credentials.
+model PlatformSetting {
+  id String @id @default("default")
+
+  activeProcessor PaymentProcessor @default(nmi) @map("active_processor")
+
+  divinityCoinEnabled       Boolean @default(false) @map("divinitycoin_enabled")
+  divinityCoinApiKey        String? @map("divinitycoin_api_key")
+  divinityCoinPartnerId     String? @map("divinitycoin_partner_id")
+  divinityCoinWebhookSecret String? @map("divinitycoin_webhook_secret")
+  divinityCoinBaseUrl       String? @map("divinitycoin_base_url")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("platform_settings")
 }
 
 enum SellerApplicationStatus {
