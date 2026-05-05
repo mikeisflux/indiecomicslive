@@ -43,10 +43,18 @@ const Body = z.object({
 
   storeName: z.string().min(2).max(120),
   storeBio: z.string().min(20).max(2000),
-  businessFilingState: z.string().max(100).optional(),
-  businessFilingNumber: z.string().max(100).optional(),
-  businessFilingUrl: flexUrl,
-  taxIdLast4: z.string().regex(/^\d{4}$/).optional(),
+  // Business registration is mandatory — the platform needs a real
+  // entity on file for KYC + chargeback recourse. Sole proprietors
+  // file a DBA / Sole Prop registration in their state.
+  businessFilingState: z.string().min(1).max(100),
+  businessFilingNumber: z.string().min(1).max(100),
+  businessFilingUrl: z.preprocess(
+    coerceUrl,
+    z.string().url({ message: "Filing URL must be a valid URL" }),
+  ),
+  taxIdLast4: z.string().regex(/^\d{4}$/, {
+    message: "Last 4 digits of EIN / SSN required",
+  }),
 
   primaryWebsite: flexUrl,
   socialLinks: z

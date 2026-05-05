@@ -81,10 +81,24 @@ export async function POST(
       metadata: { sellerUserId: app.userId, notes: parsed.data.reviewerNotes },
     });
     if (app.user?.email) {
+      const signIn = `${siteUrl()}/sign-in?email=${encodeURIComponent(app.user.email)}&callbackUrl=${encodeURIComponent("/seller")}`;
+      const seller = `${siteUrl()}/seller`;
       void sendEmail({
         to: app.user.email,
-        subject: "Your Indie Comics Live seller application is approved",
-        text: `Hi ${app.user.name ?? ""},\n\nYour seller application has been approved. Open ${siteUrl()}/seller to set up your store.\n\n— Indie Comics Live`,
+        subject: "You're approved to sell on Indie Comics Live",
+        text:
+          `Hi ${app.user.name ?? ""},\n\n` +
+          `Your seller application has been approved.\n\n` +
+          `Sign in here to start setting up your store:\n${signIn}\n\n` +
+          `(That link will email you a one-time sign-in code.)\n\n` +
+          `Once you're in, your dashboard is at ${seller}.\n\n` +
+          `— Indie Comics Live`,
+        html:
+          `<p>Hi ${app.user.name ?? ""},</p>` +
+          `<p>Your seller application has been approved.</p>` +
+          `<p style="margin:24px 0;"><a href="${signIn}" style="display:inline-block;background:#ff3366;color:#0a0a0a;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:700;">Sign in &amp; set up your store</a></p>` +
+          `<p style="color:#666;font-size:13px;">That link will email you a one-time sign-in code. After signing in, you'll land at ${seller}.</p>` +
+          `<p>— Indie Comics Live</p>`,
       });
     }
     return NextResponse.json({ ok: true, status: "approved" });
@@ -179,8 +193,12 @@ export async function POST(
 // Inline-edit any field of a seller application from /admin/seller-applications/[id].
 // Mirrors the public submit-form schema but every field is optional —
 // admins can patch one thing at a time without re-supplying the rest.
+// `userEmail` is the only field that lives on the User row, not on
+// SellerApplication; we route that to a separate update inside the
+// handler.
 const PatchBody = z
   .object({
+    userEmail: z.string().email().max(320),
     legalFirstName: z.string().min(1).max(100),
     legalLastName: z.string().min(1).max(100),
     phone: z.string().min(5).max(40),
@@ -235,10 +253,24 @@ export async function PATCH(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  await prisma.sellerApplication.update({
-    where: { id: app.id },
-    data: parsed.data,
+  // Pull the email out — that field lives on User, not SellerApplication.
+  const { userEmail, ...applicationFields } = parsed.data;
+
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(applicationFields).length > 0) {
+      await tx.sellerApplication.update({
+        where: { id: app.id },
+        data: applicationFields,
+      });
+    }
+    if (typeof userEmail === "string") {
+      await tx.user.update({
+        where: { id: app.userId },
+        data: { email: userEmail.toLowerCase().trim() },
+      });
+    }
   });
+
   await logAudit({
     actorId: me.id,
     action: "seller_application.edit",

@@ -51,6 +51,7 @@ export default async function SellerApplyPage() {
       </p>
 
       <ApplyForm
+        userEmail={me.email}
         existing={existing}
         bank={bank}
         chargebackCard={card}

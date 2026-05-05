@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type EditableApp = {
+  userEmail: string;
   legalFirstName: string;
   legalLastName: string;
   phone: string;
@@ -104,6 +105,19 @@ export default function EditApplication({
         >
           cancel
         </button>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs text-paper/60">
+          Sign-in / contact email
+        </label>
+        <input
+          className={inp}
+          type="email"
+          placeholder="seller@example.com"
+          value={form.userEmail}
+          onChange={(e) => set("userEmail", e.target.value)}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-2">

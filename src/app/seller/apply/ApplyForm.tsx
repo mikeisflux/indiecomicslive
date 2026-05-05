@@ -30,6 +30,7 @@ type ChargebackCard = {
 } | null;
 
 type Props = {
+  userEmail: string | null;
   existing: ExistingApp;
   bank: BankInfo;
   chargebackCard: ChargebackCard;
@@ -37,6 +38,7 @@ type Props = {
 };
 
 export default function ApplyForm({
+  userEmail,
   existing,
   bank,
   chargebackCard,
@@ -388,6 +390,25 @@ export default function ApplyForm({
           <p className="text-xs text-paper/60">
             Required for KYC. We never share this with buyers.
           </p>
+          {userEmail && (
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+              <p className="font-semibold uppercase tracking-widest text-paper/60">
+                Signed in as
+              </p>
+              <p className="mt-1 text-sm text-paper">{userEmail}</p>
+              <p className="mt-1 text-paper/50">
+                This is the email we&rsquo;ll use to contact you about your
+                application and for sign-in. Wrong email?{" "}
+                <a
+                  href="/sign-in"
+                  className="underline decoration-accent/60 hover:text-accent"
+                >
+                  sign in with a different one
+                </a>
+                .
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <input
               placeholder="Legal first name"
@@ -574,11 +595,12 @@ export default function ApplyForm({
 
           <div className="rounded-lg border border-white/10 bg-black/30 p-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-paper/60">
-              Business registration (optional)
+              Business registration <span className="text-accent">*</span>
             </p>
             <p className="mt-1 text-xs text-paper/60">
-              If your shop is incorporated / LLC, share the filing details so
-              we can verify faster. Skip if you sell as an individual.
+              We require a real registered entity on file for KYC + chargeback
+              recourse. Sole proprietors: file a DBA / Sole Prop in your state
+              and use that filing number.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <input
@@ -591,6 +613,7 @@ export default function ApplyForm({
                   })
                 }
                 className={inputClass}
+                required
               />
               <input
                 placeholder="Filing number"
@@ -602,6 +625,7 @@ export default function ApplyForm({
                   })
                 }
                 className={inputClass}
+                required
               />
             </div>
             <input
@@ -614,9 +638,10 @@ export default function ApplyForm({
                 })
               }
               className={`${inputClass} mt-3`}
+              required
             />
             <input
-              placeholder="EIN / Tax ID — last 4 digits only"
+              placeholder="EIN / Tax ID — last 4 digits"
               value={business.taxIdLast4}
               maxLength={4}
               inputMode="numeric"
@@ -628,6 +653,7 @@ export default function ApplyForm({
                 })
               }
               className={`${inputClass} mt-3`}
+              required
             />
           </div>
 

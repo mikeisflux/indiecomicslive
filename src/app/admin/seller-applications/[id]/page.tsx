@@ -307,6 +307,7 @@ export default async function SellerApplicationDetail({
         <EditApplication
           applicationId={app.id}
           initial={{
+            userEmail: app.user.email ?? "",
             legalFirstName: app.legalFirstName,
             legalLastName: app.legalLastName,
             phone: app.phone,
