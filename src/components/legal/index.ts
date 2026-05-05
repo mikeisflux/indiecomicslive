@@ -14,9 +14,10 @@ import GdprCcpaNotice from "./GdprCcpaNotice";
 import DataDeletionPolicy from "./DataDeletionPolicy";
 import AiPolicy from "./AiPolicy";
 import PciCompliance from "./PciCompliance";
+import type { ReactElement } from "react";
 import type { LegalSlug } from "@/lib/legal";
 
-export const LEGAL_COMPONENTS: Record<LegalSlug, () => JSX.Element> = {
+export const LEGAL_COMPONENTS: Record<LegalSlug, () => ReactElement> = {
   terms: TermsOfService,
   privacy: PrivacyPolicy,
   "seller-agreement": SellerAgreement,
