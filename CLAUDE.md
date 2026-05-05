@@ -131,14 +131,24 @@ Sellers are paid out weekly on Thursdays for orders that have been **tracking-co
   0 13 * * 4 curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://indiecomicslive.com/api/cron/payouts >>/var/log/icl-payouts.log 2>&1
   ```
 
-## Auth: magic-link confirm page
+## Auth: email + password (no magic links)
 
-Magic-link emails go to `/sign-in/confirm?token=...&email=...` instead of straight to the NextAuth callback. The page renders a "Sign me in" button that links to the real callback. Reason: Gmail / Outlook / corporate URL scanners GET the email link to scan it for malware, which silently consumed our one-shot verification token before the human ever clicked. The confirm page is plain HTML — bots fetch it harmlessly. Only a real button click navigates to the callback.
+- Sign-in: `/sign-in` — email + password, server action calls `signIn("credentials")`.
+- Sign-up: `/sign-up` — email + password + name, server action hashes the password (scrypt via `src/lib/admin-password.ts`) and signs the user in.
+- Forgot password: `/forgot-password` → `/reset-password?token=...`. The reset email is sent via SendGrid (`sendEmailRich`); the link points at our reset page (which renders a form), so the token is consumed only on POST and prefetchers can't blow through it.
+- Provider: a single `Credentials` provider in `src/lib/auth.ts`. Has a side path for the env-configured admin (`ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH`) that auto-promotes to `super_admin` on first login. Regular users authenticate against `User.passwordHash`.
+- Magic-link / SendGrid email auth was removed (2026-05-05) — too many email-scanner prefetches consumed one-shot verification tokens before the human ever clicked.
+- `trustHost: true` and `secret: process.env.AUTH_SECRET` are set explicitly so Auth.js works behind the nginx + Cloudflare proxy chain.
+- `AUTH_DEBUG=1` toggles verbose Auth.js logs.
 
-- Implementation: `SendGrid.sendVerificationRequest` is overridden in `src/lib/auth.ts`.
-- Auth.js v5 also requires `trustHost: true` for our nginx + Cloudflare setup.
-- Magic-link email is sent direct via SendGrid mail/send (same API key as outbound transactional).
-- Set `AUTH_DEBUG=1` to enable Auth.js verbose logs in pm2.
+## reCAPTCHA v2
+
+Enabled per-platform via `PlatformSetting.recaptchaEnabled` + `recaptchaSiteKey` + `recaptchaSecretKey`. Configure at `/admin/settings/recaptcha`.
+
+- Library: `src/lib/recaptcha.ts` — `getRecaptchaSiteKey()` for forms (server-side), `verifyRecaptcha(token, ip)` for API/server-action verification. Cached for 30s.
+- Component: `src/components/RecaptchaWidget.tsx` — drop-in widget; renders nothing if `siteKey` is null.
+- Forms wired today: `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`, `/seller/apply`. Add it to any new public-facing form by passing `siteKey` to a client form, including the widget, and calling `verifyRecaptcha` on the server before any state change.
+- Verifications short-circuit to `ok:true` when reCAPTCHA isn't enabled — useful in dev.
 
 ## Pending / planned work
 

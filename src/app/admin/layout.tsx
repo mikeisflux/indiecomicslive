@@ -17,6 +17,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/settings/payments", label: "  ↳ Payments" },
+  { href: "/admin/settings/recaptcha", label: "  ↳ reCAPTCHA" },
 ];
 
 export const dynamic = "force-dynamic";

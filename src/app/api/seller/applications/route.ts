@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma, SellerApplicationStatus } from "@/generated/prisma";
+import { verifyRecaptcha } from "@/lib/recaptcha";
 
 // Current platform agreement version. Bump this when ToS / Seller
 // Agreement / NSFW Policy materially change so we re-prompt.
@@ -29,6 +31,7 @@ function coerceUrl(v: unknown): string | undefined {
 const flexUrl = z.preprocess(coerceUrl, z.string().url().optional());
 
 const Body = z.object({
+  recaptchaToken: z.string().optional(),
   legalFirstName: z.string().min(1).max(100),
   legalLastName: z.string().min(1).max(100),
   dateOfBirth: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -156,6 +159,20 @@ export async function POST(req: Request) {
           message: i.message,
         })),
       },
+      { status: 400 },
+    );
+  }
+
+  const h = await headers();
+  const captchaIp =
+    h.get("cf-connecting-ip") ??
+    h.get("x-real-ip") ??
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    null;
+  const captcha = await verifyRecaptcha(parsed.data.recaptchaToken ?? null, captchaIp);
+  if (!captcha.ok) {
+    return NextResponse.json(
+      { error: "captcha_failed", message: "Captcha verification failed." },
       { status: 400 },
     );
   }

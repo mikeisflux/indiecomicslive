@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import RecaptchaWidget from "@/components/RecaptchaWidget";
 
 // Card collection is processor-aware: NMI uses CollectJS iframes,
 // DivinityCoin renders Stripe Elements against a setup intent on DC's
@@ -43,6 +44,7 @@ type Props = {
   chargebackCard: ChargebackCard;
   nmiPublicKey: string | null;
   processor: "nmi" | "divinitycoin";
+  recaptchaSiteKey: string | null;
 };
 
 export default function ApplyForm({
@@ -52,6 +54,7 @@ export default function ApplyForm({
   chargebackCard,
   nmiPublicKey,
   processor,
+  recaptchaSiteKey,
 }: Props) {
   const router = useRouter();
   // Read previously-saved form state from localStorage at first mount.
@@ -321,10 +324,20 @@ export default function ApplyForm({
         whatnot: normalizeUrl(business.whatnot),
         ebay: normalizeUrl(business.ebay),
       };
+      const captchaToken =
+        typeof window !== "undefined" && window.grecaptcha
+          ? window.grecaptcha.getResponse()
+          : "";
+      if (recaptchaSiteKey && !captchaToken) {
+        setSubmitting(false);
+        setError("Please complete the captcha.");
+        return;
+      }
       const r = await fetch("/api/seller/applications", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          recaptchaToken: captchaToken || undefined,
           legalFirstName: identity.legalFirstName,
           legalLastName: identity.legalLastName,
           dateOfBirth: identity.dateOfBirth,
@@ -874,6 +887,7 @@ export default function ApplyForm({
               }
             />
           )}
+          <RecaptchaWidget siteKey={recaptchaSiteKey} />
           {error && <p className="text-sm text-accent">{error}</p>}
           <div className="flex justify-between">
             <button

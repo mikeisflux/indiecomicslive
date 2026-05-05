@@ -1,22 +1,21 @@
 import NextAuth from "next-auth";
-import SendGrid from "next-auth/providers/sendgrid";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminPassword } from "@/lib/admin-password";
 
-// Two ways to sign in:
-//   1. SendGrid magic link  — the path everyone uses on /sign-in.
-//   2. Credentials (email + password) — staff-only, gated by
-//      ADMIN_EMAIL + ADMIN_PASSWORD_HASH env vars. Used at
-//      /admin/sign-in so we don't have to wait on a magic link to
-//      get into the admin panel.
+// Email + password sign-in for everyone. The Credentials provider:
+//   - looks up the User by email
+//   - verifies the supplied password against User.passwordHash (scrypt)
+//   - has a side path for the env-configured admin (ADMIN_EMAIL +
+//     ADMIN_PASSWORD_HASH) that auto-promotes that user to super_admin
+//
+// Magic-link / SendGrid email auth was removed — too many email-client
+// link scanners pre-fetch the one-shot verification URL and consume it
+// before the user clicks. Password auth is the simplest path that
+// works behind any proxy / scanner.
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  // We're always behind nginx + (optionally) Cloudflare in production.
-  // Without trustHost, Auth.js refuses the magic-link callback when it
-  // can't trust X-Forwarded-Host, which manifests as "I clicked the
-  // link and the site opened but I'm not signed in." Always trust here.
   trustHost: true,
   secret: process.env.AUTH_SECRET,
   debug: process.env.AUTH_DEBUG === "1",
@@ -32,7 +31,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn(message) {
       console.log("[auth] signIn", {
         email: message.user?.email,
-        isNewUser: message.isNewUser,
         provider: message.account?.provider,
       });
     },
@@ -41,112 +39,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   providers: [
-    SendGrid({
-      apiKey: process.env.AUTH_SENDGRID_KEY,
-      from: process.env.AUTH_EMAIL_FROM,
-      // Override the default magic-link send for two reasons:
-      //
-      //   1. **Disable SendGrid click tracking on this email.** Account-wide
-      //      click tracking rewrites every URL into `url{N}.<your domain>/
-      //      ls/click?upn=...` so SendGrid can log clicks. Any URL scanner
-      //      (Gmail's prefetch, Outlook ATP, corporate proxies) that pings
-      //      that wrapper makes SendGrid forward to our callback, which
-      //      consumes the one-shot verification token before the human
-      //      ever clicks. We send `tracking_settings.click_tracking.enable:
-      //      false` so the link in the email is the raw URL.
-      //
-      //   2. **Keep the URL pointed at the real callback.** No intermediate
-      //      "click to confirm" page; defense against the residual prefetch
-      //      problem is the Sec-Fetch-User check in
-      //      src/app/api/auth/[...nextauth]/route.ts.
-      async sendVerificationRequest({ identifier: email, url, provider }) {
-        const apiKey = provider.apiKey as string | undefined;
-        const fromCfg = provider.from;
-        const from =
-          typeof fromCfg === "string"
-            ? fromCfg
-            : fromCfg && typeof fromCfg === "object" && "email" in fromCfg
-              ? String((fromCfg as { email: unknown }).email ?? "")
-              : "";
-        if (!apiKey || !from) {
-          throw new Error("SendGrid not configured for magic-link sign-in");
-        }
-
-        const host = new URL(url).host;
-        const subject = `Sign in to ${host}`;
-        const text = [
-          `Sign in to ${host} as ${email} by clicking this link:`,
-          ``,
-          url,
-          ``,
-          `If you didn't request this, you can ignore this message.`,
-        ].join("\n");
-        const html = `
-          <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#eee;padding:32px">
-            <div style="max-width:480px;margin:0 auto">
-              <h1 style="font-size:20px;margin:0 0 16px">Sign in to Indie Comics Live</h1>
-              <p style="margin:0 0 24px;color:#aaa">
-                Signing in as <strong style="color:#fff">${email}</strong>. Click the button —
-                this is a one-time link.
-              </p>
-              <p style="margin:0 0 24px">
-                <a href="${url}"
-                   style="display:inline-block;background:#ff3366;color:#fff;text-decoration:none;
-                          padding:14px 28px;border-radius:999px;font-weight:700">
-                  Sign in
-                </a>
-              </p>
-              <p style="margin:0;color:#666;font-size:12px">
-                If the button doesn't work, copy this URL into your browser:<br>
-                <span style="color:#888;word-break:break-all">${url}</span>
-              </p>
-              <p style="margin:24px 0 0;color:#666;font-size:12px">
-                Didn't request this? Ignore this email.
-              </p>
-            </div>
-          </body>`;
-
-        const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${apiKey}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            personalizations: [{ to: [{ email }] }],
-            from: { email: from, name: "Indie Comics Live" },
-            subject,
-            content: [
-              { type: "text/plain", value: text },
-              { type: "text/html", value: html },
-            ],
-            // Per-email override — turn off SendGrid click tracking so
-            // the magic link in the body isn't wrapped in a redirector
-            // that any scanner can blow through.
-            tracking_settings: {
-              click_tracking: { enable: false, enable_text: false },
-              open_tracking: { enable: false },
-              subscription_tracking: { enable: false },
-            },
-            mail_settings: {
-              bypass_list_management: { enable: true },
-            },
-          }),
-        });
-        if (!r.ok) {
-          const body = await r.text().catch(() => "");
-          console.error("[auth] SendGrid magic-link send failed", {
-            status: r.status,
-            body: body.slice(0, 500),
-            to: email,
-          });
-          throw new Error(`SendGrid send failed: ${r.status}`);
-        }
-      },
-    }),
     Credentials({
-      id: "admin-credentials",
-      name: "Admin password",
+      id: "credentials",
+      name: "Email and password",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -156,27 +51,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = String(raw?.password ?? "");
         if (!email || !password) return null;
 
+        // Admin env override — gives staff access via ADMIN_EMAIL +
+        // ADMIN_PASSWORD_HASH even before the corresponding User row
+        // has a passwordHash of its own. First successful staff login
+        // promotes the user to super_admin.
         const adminEmail = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
         const adminHash = process.env.ADMIN_PASSWORD_HASH ?? "";
-        if (!adminEmail || !adminHash) return null;
-        if (email !== adminEmail) return null;
-
-        const ok = await verifyAdminPassword(password, adminHash);
-        if (!ok) return null;
-
-        // Find or create the admin's user row (idempotent).
-        let user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-          user = await prisma.user.create({
-            data: { email, role: "super_admin" },
-          });
-        } else if (user.role !== "super_admin" && user.role !== "admin") {
-          // First successful credential login also flips them to super_admin.
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { role: "super_admin" },
-          });
+        if (adminEmail && adminHash && email === adminEmail) {
+          const ok = await verifyAdminPassword(password, adminHash);
+          if (!ok) return null;
+          let user = await prisma.user.findUnique({ where: { email } });
+          if (!user) {
+            user = await prisma.user.create({
+              data: { email, role: "super_admin" },
+            });
+          } else if (user.role !== "super_admin" && user.role !== "admin") {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { role: "super_admin" },
+            });
+          }
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          } as { id: string; email: string | null; name: string | null; role: string };
         }
+
+        // Regular user with a stored passwordHash.
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !user.passwordHash) return null;
+        const ok = await verifyAdminPassword(password, user.passwordHash);
+        if (!ok) return null;
         return {
           id: user.id,
           email: user.email,
@@ -188,20 +95,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   pages: {
     signIn: "/sign-in",
-    verifyRequest: "/sign-in/check-email",
   },
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // First sign-in: persist user id + role on the token.
         token.sub = user.id;
         const u = user as { role?: string };
         if (u.role) token.role = u.role;
       } else if (token.sub && !token.role) {
-        // Subsequent calls: hydrate role from DB so /admin guards work
-        // for users that started life as a magic-link viewer and were
-        // promoted via grant-admin or first-credentials login.
         const u = await prisma.user.findUnique({
           where: { id: token.sub },
           select: { role: true },
