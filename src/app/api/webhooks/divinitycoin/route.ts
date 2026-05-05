@@ -4,6 +4,7 @@ import {
   getDivinityCoinConfig,
   handleTestPing,
 } from "@/lib/divinitycoin";
+import { prisma } from "@/lib/prisma";
 
 // POST /api/webhooks/divinitycoin
 //
@@ -61,17 +62,63 @@ export async function POST(req: Request) {
         error: "card_redemption_not_supported",
       });
 
-    case "payment.succeeded":
-      // TODO(auction): mark the corresponding Order as paid + write
-      // a PaymentLedger row. Wire when we charge auction wins via DC.
+    case "payment.succeeded": {
+      // Synchronous chargeOrderDc already marks the order paid; this
+      // path covers async / out-of-band confirmations (e.g. webhooks
+      // arriving before the synchronous response). Idempotent: if the
+      // order is already 'paid' the updateMany matches 0 rows.
+      const orderId =
+        (event.data?.orderId as string | undefined) ??
+        (event.data?.pledgeId as string | undefined);
+      const txn =
+        event.data?.stripePaymentIntentId ?? event.data?.paymentId;
+      if (orderId && typeof txn === "string") {
+        await prisma.order.updateMany({
+          where: { id: orderId, status: "pending_payment" },
+          data: {
+            status: "paid",
+            paymentProcessor: "divinitycoin",
+            nmiTransactionId: txn,
+            paidAt: new Date(),
+          },
+        });
+      }
       return NextResponse.json({ success: true });
+    }
 
-    case "payment.failed":
-      // TODO(auction): mark Order as failed + notify the buyer.
+    case "payment.failed": {
+      const orderId =
+        (event.data?.orderId as string | undefined) ??
+        (event.data?.pledgeId as string | undefined);
+      if (orderId) {
+        await prisma.order.updateMany({
+          where: { id: orderId, status: "pending_payment" },
+          data: { status: "payment_failed" },
+        });
+      }
       return NextResponse.json({ success: true });
+    }
 
-    case "refund.completed":
+    case "refund.completed": {
+      // Mark the order refunded + record the refund txn id.
+      const orderId =
+        (event.data?.orderId as string | undefined) ??
+        (event.data?.pledgeId as string | undefined);
+      const refundTxn =
+        (event.data?.refundId as string | undefined) ??
+        (event.data?.paymentId as string | undefined);
+      if (orderId) {
+        await prisma.order.updateMany({
+          where: { id: orderId, status: { in: ["paid", "shipped"] } },
+          data: {
+            status: "refunded",
+            refundedAt: new Date(),
+            nmiRefundId: typeof refundTxn === "string" ? refundTxn : undefined,
+          },
+        });
+      }
       return NextResponse.json({ success: true });
+    }
 
     case "refund.request":
       return NextResponse.json({

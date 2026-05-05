@@ -36,6 +36,7 @@ enum LotStatus {
 
 enum OrderStatus {
   pending_payment
+  payment_failed
   paid
   shipped
   delivered
@@ -458,6 +459,8 @@ model Order {
   nmiTransactionId        String?           @map("nmi_transaction_id")
   nmiInitialTransactionId String?           @map("nmi_initial_transaction_id")
   paidAt                  DateTime?         @map("paid_at")
+  refundedAt              DateTime?         @map("refunded_at")
+  nmiRefundId             String?           @map("nmi_refund_id")
   shippingAddress         String?           @map("shipping_address")
   trackingNumber          String?           @map("tracking_number")
   createdAt               DateTime          @default(now()) @map("created_at")

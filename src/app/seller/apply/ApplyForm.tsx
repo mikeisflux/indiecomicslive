@@ -772,6 +772,7 @@ export default function ApplyForm({
           onSaved={() => setBankSaved(true)}
           onBack={() => setStep("business")}
           onNext={() => setStep("chargeback")}
+          processor={processor}
         />
       )}
 
@@ -983,11 +984,13 @@ function BankSection({
   onSaved,
   onBack,
   onNext,
+  processor,
 }: {
   saved: boolean;
   onSaved: () => void;
   onBack: () => void;
   onNext: () => void;
+  processor: "nmi" | "divinitycoin";
 }) {
   const [form, setForm] = useState({
     bankName: "",
@@ -1013,7 +1016,15 @@ function BankSection({
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch("/api/seller/bank-account", {
+      // Route to the processor-specific endpoint. NMI keeps the legacy
+      // path; Divinity Payments hands the bank info off to its
+      // create-external-account API and stores the resulting Stripe
+      // Connect external account id alongside the encrypted PII.
+      const url =
+        processor === "divinitycoin"
+          ? "/api/seller/bank-account/dc"
+          : "/api/seller/bank-account";
+      const r = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
