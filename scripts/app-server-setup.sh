@@ -278,8 +278,8 @@ DATABASE_URL=TODO_DATABASE_URL
 AUTH_SECRET=$AUTH_SECRET
 AUTH_URL=https://$APP_HOST
 
-# === Email (Resend) ===
-AUTH_RESEND_KEY=TODO_RESEND_API_KEY
+# === Email (SendGrid) ===
+AUTH_SENDGRID_KEY=TODO_SENDGRID_API_KEY
 AUTH_EMAIL_FROM=noreply@$APP_HOST
 
 # === Ant Media Server ===
@@ -372,8 +372,8 @@ B. Postgres — provision a DB. Recommended: Neon (free tier, 60 sec).
    and paste it into:
      $ENV_FILE   →  DATABASE_URL=
 
-C. Resend — verify $APP_HOST as a sender domain, get an API key.
-     $ENV_FILE   →  AUTH_RESEND_KEY=
+C. SendGrid — verify $APP_HOST as a sender domain, get an API key.
+     $ENV_FILE   →  AUTH_SENDGRID_KEY=
 
 D. PaymentCloud — from the merchant portal:
      NMI_SECURITY_KEY  =  <Security Key from API tab>

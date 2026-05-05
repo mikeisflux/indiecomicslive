@@ -21,7 +21,7 @@ Have ready:
   ```
 - `NMI_SECURITY_KEY` and `NMI_PUBLIC_KEY` from the PaymentCloud merchant portal.
 - R2 access key + secret + bucket name + public URL.
-- Resend API key + verified `noreply@indiecomicslive.com` sender.
+- SendGrid API key + verified `noreply@indiecomicslive.com` sender.
 - DNS access for `indiecomicslive.com` and `www.indiecomicslive.com`.
 
 ## Phase 0 — snapshot
@@ -107,7 +107,7 @@ DATABASE_URL=<your DB URL>
 AUTH_SECRET=<openssl rand -base64 32>
 AUTH_URL=https://indiecomicslive.com
 
-AUTH_RESEND_KEY=re_xxx
+AUTH_SENDGRID_KEY=SG.xxx
 AUTH_EMAIL_FROM=noreply@indiecomicslive.com
 
 ANT_MEDIA_HOST=stream.indiecomicslive.com

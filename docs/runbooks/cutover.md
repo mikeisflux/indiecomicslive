@@ -17,7 +17,7 @@ skip phases; each one builds on the last.
       ```
 - [ ] Lower DNS TTLs on `indiecomicslive.com` to 300 (5 min). Wait
       24h for the old TTL to expire before cutover.
-- [ ] Get the Mux/PaymentCloud creds + R2 keys + Resend key handy.
+- [ ] Get the Mux/PaymentCloud creds + R2 keys + SendGrid key handy.
 
 ## Phase A — TURN box (no app dependency)
 

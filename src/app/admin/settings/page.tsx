@@ -118,8 +118,8 @@ export default function SettingsPage() {
           status: process.env.AUTH_SECRET ? "set" : "missing",
         },
         {
-          label: "Resend (magic link)",
-          status: process.env.AUTH_RESEND_KEY ? "configured" : "not configured",
+          label: "SendGrid (magic link)",
+          status: process.env.AUTH_SENDGRID_KEY ? "configured" : "not configured",
         },
         {
           label: "From address",

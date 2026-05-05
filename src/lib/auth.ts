@@ -1,13 +1,13 @@
 import NextAuth from "next-auth";
-import Resend from "next-auth/providers/resend";
+import SendGrid from "next-auth/providers/sendgrid";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
-    Resend({
-      apiKey: process.env.AUTH_RESEND_KEY,
+    SendGrid({
+      apiKey: process.env.AUTH_SENDGRID_KEY,
       from: process.env.AUTH_EMAIL_FROM,
     }),
   ],

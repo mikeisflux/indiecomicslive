@@ -10,7 +10,7 @@ export default function SignIn() {
       <form
         action={async (formData) => {
           "use server";
-          await signIn("resend", formData);
+          await signIn("sendgrid", formData);
         }}
         className="space-y-3"
       >
