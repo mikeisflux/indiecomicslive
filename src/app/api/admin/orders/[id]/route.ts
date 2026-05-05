@@ -131,7 +131,13 @@ export async function POST(
   }
 
   if (action === "mark_shipped") {
-    await prisma.order.update({ where: { id }, data: { status: "shipped" } });
+    await prisma.order.update({
+      where: { id },
+      data: {
+        status: "shipped",
+        shippedAt: order.shippedAt ?? new Date(),
+      },
+    });
     await logAudit({
       actorId: me.id,
       action: "order.mark_shipped",
@@ -143,9 +149,15 @@ export async function POST(
   }
 
   if (action === "mark_delivered") {
+    // Setting deliveredAt makes the order eligible for the Thursday
+    // payout cron (lib/payouts.ts).
     await prisma.order.update({
       where: { id },
-      data: { status: "delivered" },
+      data: {
+        status: "delivered",
+        deliveredAt: order.deliveredAt ?? new Date(),
+        shippedAt: order.shippedAt ?? new Date(),
+      },
     });
     await logAudit({
       actorId: me.id,

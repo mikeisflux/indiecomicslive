@@ -104,9 +104,42 @@ Public-facing docs that name the processor:
 - Feature work happens on `claude/*` branches (e.g. `claude/whatnot-clone-exploration-VxA1W`, `claude/merge-whatnot-exploration-MA9Pt`).
 - Always confirm the branch with the user before pushing destructive history changes.
 
+## Shipping (ShipStation)
+
+We run a **single master ShipStation account** — one set of API creds in `.env.local` (`SHIPSTATION_API_KEY` / `SHIPSTATION_API_SECRET`). Sellers don't connect their own ShipStation; they print labels through our UI and we pay the carrier.
+
+- Library: `src/lib/shipstation.ts` (V1 REST client, basic auth, helpers for getRates / createLabel / parseShippingAddress / shipFromJsonToAddress / voidLabel).
+- Each seller stores their **return address** in `User.shipFromAddress` (JSON). Edit at `/seller/ship-from`.
+- **Buy label flow**: `/seller/orders/[id]` → ShipForm → `POST /api/seller/orders/[id]/rates` → `POST /api/seller/orders/[id]/buy-label`. Label PDF cached in R2 under `labels/<order-id>/...pdf`; re-served via `GET /api/seller/orders/[id]/label.pdf` (presigned R2 redirect).
+- Buying a label sets `Order.status='shipped'`, `shippedAt`, `trackingNumber`, `shippingCarrier`, `shippingService`, `shippingCostCents`, `shipstationShipmentId`, `labelR2Key`.
+- **Webhook**: `POST /api/webhooks/shipstation?token=<SHIPSTATION_WEBHOOK_SECRET>` — currently a logged stub for observability. Real delivery confirmation: an admin marks the order delivered (`/admin/orders/[id]` → `mark_delivered`, which sets `deliveredAt` and makes the order payout-eligible). Future improvement: a daily cron polling SS shipment status.
+
+## Payouts (weekly Thursday)
+
+Sellers are paid out weekly on Thursdays for orders that have been **tracking-confirmed delivered**. Money flows through DivinityCoin (`callDivinityCoinAPI("create_payout", ...)`).
+
+- Library: `src/lib/payouts.ts` — `processWeeklyPayouts()` finds eligible orders, groups by seller, computes `net = gross - platform_fee + shipping_reimbursement`, creates a `Payout` row, dispatches via DC, marks orders with `payoutId`.
+- Eligibility: `order.status === 'delivered' AND deliveredAt IS NOT NULL AND payoutId IS NULL`.
+- Platform fee: `PLATFORM_FEE_BPS` env (default 1000 = 10%).
+- Cron: `POST /api/cron/payouts` with `Authorization: Bearer $CRON_SECRET`. Idempotent — safe to re-run for the same week. Wire as a system cron on the app server:
+  ```
+  0 13 * * 4 curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://indiecomicslive.com/api/cron/payouts >>/var/log/icl-payouts.log 2>&1
+  ```
+
+## Auth: magic-link confirm page
+
+Magic-link emails go to `/sign-in/confirm?token=...&email=...` instead of straight to the NextAuth callback. The page renders a "Sign me in" button that links to the real callback. Reason: Gmail / Outlook / corporate URL scanners GET the email link to scan it for malware, which silently consumed our one-shot verification token before the human ever clicked. The confirm page is plain HTML — bots fetch it harmlessly. Only a real button click navigates to the callback.
+
+- Implementation: `SendGrid.sendVerificationRequest` is overridden in `src/lib/auth.ts`.
+- Auth.js v5 also requires `trustHost: true` for our nginx + Cloudflare setup.
+- Magic-link email is sent direct via SendGrid mail/send (same API key as outbound transactional).
+- Set `AUTH_DEBUG=1` to enable Auth.js verbose logs in pm2.
+
 ## Pending / planned work
 
-- **ShipStation integration** — per-seller. Sellers ship their own items; we need to wire each approved seller to ShipStation so they can buy + print labels and we can pull tracking back into the order record. Not started yet.
+- Daily ShipStation tracking poll → auto-set `Order.deliveredAt` (we currently rely on the admin marking delivered).
+- Buyer-visible tracking page on `/orders/[id]`.
+- Admin `/admin/payouts` page (run + history).
 
 ## Conventions
 

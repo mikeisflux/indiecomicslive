@@ -145,12 +145,18 @@ model User {
   bids              Bid[]
   ordersAsBuyer     Order[]             @relation("Buyer")
   ordersAsSeller    Order[]             @relation("Seller")
+  payouts           Payout[]            @relation("PayoutSeller")
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]
   followingSellers  Follow[]            @relation("Follower")
   followedBy        Follow[]            @relation("Followed")
   lotsAsHighBidder  Lot[]               @relation("HighBidder")
   savedAddresses    UserAddress[]
+
+  // Seller's return / ship-from address (used by ShipStation labels).
+  // Stored as JSON to keep the User row narrow:
+  //   { name, company?, phone?, street1, street2?, city, state, postalCode, country }
+  shipFromAddress   Json?               @map("ship_from_address")
 
   @@index([deletedAt])
   @@index([lockedAt])
@@ -462,16 +468,61 @@ model Order {
   refundedAt              DateTime?         @map("refunded_at")
   nmiRefundId             String?           @map("nmi_refund_id")
   shippingAddress         String?           @map("shipping_address")
+  // Shipping (ShipStation)
+  shipstationShipmentId   String?           @map("shipstation_shipment_id")
+  shippingCarrier         String?           @map("shipping_carrier")
+  shippingService         String?           @map("shipping_service")
+  shippingCostCents       Int?              @map("shipping_cost_cents")
+  labelR2Key              String?           @map("label_r2_key")
   trackingNumber          String?           @map("tracking_number")
+  shippedAt               DateTime?         @map("shipped_at")
+  deliveredAt             DateTime?         @map("delivered_at")
+  // Payout (Thursday batch on delivered orders)
+  payoutId                String?           @map("payout_id") @db.Uuid
   createdAt               DateTime          @default(now()) @map("created_at")
 
-  lot    Lot  @relation(fields: [lotId], references: [id])
-  buyer  User @relation("Buyer", fields: [buyerId], references: [id])
-  seller User @relation("Seller", fields: [sellerId], references: [id])
+  lot     Lot     @relation(fields: [lotId], references: [id])
+  buyer   User    @relation("Buyer", fields: [buyerId], references: [id])
+  seller  User    @relation("Seller", fields: [sellerId], references: [id])
+  payout  Payout? @relation(fields: [payoutId], references: [id])
 
   @@index([buyerId])
   @@index([sellerId])
+  @@index([sellerId, deliveredAt, payoutId])
   @@map("orders")
+}
+
+// One row per seller per weekly batch (Thursday). Holds the aggregated
+// amount paid out plus the underlying ledger of orders. Created when
+// the weekly run dispatches the DivinityCoin payout; orders link back
+// via Order.payoutId.
+model Payout {
+  id                String   @id @default(uuid()) @db.Uuid
+  sellerId          String   @map("seller_id") @db.Uuid
+  weekEnding        DateTime @map("week_ending") @db.Date
+  grossCents        Int      @map("gross_cents")
+  feeCents          Int      @map("fee_cents")
+  shippingCents     Int      @default(0) @map("shipping_cents")
+  netCents          Int      @map("net_cents")
+  status            PayoutStatus @default(pending)
+  dcTransactionId   String?  @map("dc_transaction_id")
+  failureReason     String?  @map("failure_reason")
+  processedAt       DateTime? @map("processed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  seller User    @relation("PayoutSeller", fields: [sellerId], references: [id])
+  orders Order[]
+
+  @@unique([sellerId, weekEnding])
+  @@index([status])
+  @@map("payouts")
+}
+
+enum PayoutStatus {
+  pending
+  processing
+  paid
+  failed
 }
 
 model ChatMessage {
