@@ -65,6 +65,8 @@ const Body = z.object({
       tiktok: flexUrl,
       bluesky: flexUrl,
       website: flexUrl,
+      whatnot: flexUrl,
+      ebay: flexUrl,
     })
     .partial()
     .optional(),

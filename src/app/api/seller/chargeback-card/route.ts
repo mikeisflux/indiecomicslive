@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -60,8 +61,13 @@ export async function POST(req: Request) {
     select: { email: true },
   });
 
+  // Generate the vault id locally — PaymentCloud doesn't echo it back
+  // on add_customer responses.
+  const vaultId = `iclcb_${randomUUID().replace(/-/g, "")}`;
+
   const vaultResp = await addCustomerToVault(config, {
     paymentToken: parsed.data.paymentToken,
+    customerVaultId: vaultId,
     firstName: parsed.data.billingFirstName,
     lastName: parsed.data.billingLastName,
     email: user?.email,
@@ -73,15 +79,25 @@ export async function POST(req: Request) {
     country: parsed.data.billingCountry,
   });
 
-  if (vaultResp.response !== "1" || !vaultResp.customer_vault_id) {
+  console.log("[chargeback-card] add_customer <-", {
+    response: vaultResp.response,
+    responsetext: vaultResp.responsetext,
+    raw: vaultResp.raw,
+  });
+
+  if (vaultResp.response !== "1") {
     return NextResponse.json(
       { error: vaultResp.responsetext || "card_declined" },
       { status: 400 },
     );
   }
 
-  const vaultId = vaultResp.customer_vault_id;
   const validation = await validateVaultCard(config, vaultId);
+  console.log("[chargeback-card] validate_vault <-", {
+    response: validation.response,
+    responsetext: validation.responsetext,
+    raw: validation.raw,
+  });
   if (validation.response !== "1") {
     await deleteVaultCustomer(config, vaultId).catch(() => null);
     return NextResponse.json(

@@ -72,6 +72,8 @@ export default function ApplyForm({
       youtube: string;
       tiktok: string;
       bluesky: string;
+      whatnot: string;
+      ebay: string;
       businessFilingState: string;
       businessFilingNumber: string;
       businessFilingUrl: string;
@@ -139,6 +141,8 @@ export default function ApplyForm({
     youtube: "",
     tiktok: "",
     bluesky: "",
+    whatnot: "",
+    ebay: "",
     businessFilingState: "",
     businessFilingNumber: "",
     businessFilingUrl: "",
@@ -305,6 +309,8 @@ export default function ApplyForm({
         youtube: normalizeUrl(business.youtube),
         tiktok: normalizeUrl(business.tiktok),
         bluesky: normalizeUrl(business.bluesky),
+        whatnot: normalizeUrl(business.whatnot),
+        ebay: normalizeUrl(business.ebay),
       };
       const r = await fetch("/api/seller/applications", {
         method: "POST",
@@ -592,6 +598,24 @@ export default function ApplyForm({
             }
             className={inputClass}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              placeholder="Whatnot profile URL"
+              value={business.whatnot}
+              onChange={(e) =>
+                setBusiness({ ...business, whatnot: e.target.value })
+              }
+              className={inputClass}
+            />
+            <input
+              placeholder="eBay profile URL"
+              value={business.ebay}
+              onChange={(e) =>
+                setBusiness({ ...business, ebay: e.target.value })
+              }
+              className={inputClass}
+            />
+          </div>
 
           <div className="rounded-lg border border-white/10 bg-black/30 p-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-paper/60">
@@ -757,6 +781,7 @@ export default function ApplyForm({
           ) : nmiPublicKey ? (
             <NmiCardForm
               publicKey={nmiPublicKey}
+              submitUrl="/api/seller/chargeback-card"
               onSuccess={() => setChargebackSaved(true)}
               onError={(m) => setError(m)}
             />

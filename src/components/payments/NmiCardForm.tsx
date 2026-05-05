@@ -31,18 +31,26 @@ interface CollectJsResponse {
 
 type Props = {
   publicKey: string;
+  // Where to POST the tokenized card. Defaults to /api/payment-methods
+  // for buyer cards; sellers' chargeback flow passes
+  // /api/seller/chargeback-card so the card lands in the right table.
+  submitUrl?: string;
   onSuccess: (methodId: string) => void;
   onError: (message: string) => void;
 };
 
 // Save-card form: tokenizes via CollectJS, posts the payment_token to
-// /api/payment-methods which vaults it on PaymentCloud + persists to
-// userPaymentMethods. Bidders must have a saved card before placing
-// bids — auction wins charge automatically (MIT) on close.
+// the configured `submitUrl`, which vaults it on PaymentCloud and
+// persists to whichever per-flow table is appropriate.
 //
 // Hardcoded to the marketplace pattern from indiecrowdfund_2.0 since
 // that flow is the closest analog (cardholder-present, no AoN hold).
-export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
+export function NmiCardForm({
+  publicKey,
+  submitUrl = "/api/payment-methods",
+  onSuccess,
+  onError,
+}: Props) {
   const [scriptReady, setScriptReady] = useState(false);
   const { loadFailed: cardFormLoadFailed } = useCollectJsIframeVerify({
     scriptReady,
@@ -209,7 +217,7 @@ export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
         }
         try {
           const b = billingRef.current;
-          const r = await fetch("/api/payment-methods", {
+          const r = await fetch(submitUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

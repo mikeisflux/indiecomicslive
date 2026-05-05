@@ -391,39 +391,54 @@ function Status({ status }: { status: string }) {
   );
 }
 
+// Always show every social slot we accept so reviewers can see at a
+// glance what's missing. Order matches the public form. Values that
+// aren't valid strings render as a muted "—" rather than being hidden.
+const SOCIAL_SLOTS: { key: string; label: string }[] = [
+  { key: "twitter", label: "Twitter / X" },
+  { key: "instagram", label: "Instagram" },
+  { key: "youtube", label: "YouTube" },
+  { key: "tiktok", label: "TikTok" },
+  { key: "bluesky", label: "Bluesky" },
+  { key: "website", label: "Personal site" },
+  { key: "whatnot", label: "Whatnot profile" },
+  { key: "ebay", label: "eBay profile" },
+];
+
 function SocialLinks({ links }: { links: unknown }) {
-  if (!links || typeof links !== "object") {
-    return (
-      <Field label="Social links" value={<span className="text-paper/40">none</span>} />
-    );
-  }
-  const entries = Object.entries(links as Record<string, unknown>).filter(
-    ([, v]) => typeof v === "string" && v.length > 0,
-  ) as [string, string][];
-  if (entries.length === 0) {
-    return (
-      <Field label="Social links" value={<span className="text-paper/40">none</span>} />
-    );
-  }
+  const obj = (links && typeof links === "object" ? links : {}) as Record<
+    string,
+    unknown
+  >;
   return (
     <Field
       label="Social links"
       value={
         <ul className="space-y-1">
-          {entries.map(([k, v]) => (
-            <li key={k} className="text-xs">
-              <span className="text-paper/50">{k}:</span>{" "}
-              <a href={v} target="_blank" className="text-accent">
-                {v}
-              </a>
-            </li>
-          ))}
+          {SOCIAL_SLOTS.map(({ key, label }) => {
+            const v = obj[key];
+            const url = typeof v === "string" && v.trim() ? v.trim() : null;
+            return (
+              <li key={key} className="text-xs">
+                <span className="text-paper/50">{label}:</span>{" "}
+                {url ? (
+                  <a href={url} target="_blank" className="text-accent">
+                    {url}
+                  </a>
+                ) : (
+                  <span className="text-paper/30">—</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       }
     />
   );
 }
 
+// Old version kept below in case something imports it (it doesn't, but
+// the bundler used to pull this signature into the type-check path).
 function PriorPlatforms({ platforms }: { platforms: unknown }) {
   if (!Array.isArray(platforms) || platforms.length === 0) {
     return (
