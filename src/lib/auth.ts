@@ -44,6 +44,97 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     SendGrid({
       apiKey: process.env.AUTH_SENDGRID_KEY,
       from: process.env.AUTH_EMAIL_FROM,
+      // Override the default email to send a link to our /sign-in/confirm
+      // page (which renders a "Click to sign in" button) instead of the
+      // raw callback. Gmail / Outlook / corporate link-safety scanners
+      // GET the email link before the user clicks; on the raw callback
+      // that GET silently consumes the one-shot verification token and
+      // the user lands on a "Verification" error. The confirm page is a
+      // plain HTML page — bots fetch it harmlessly. Only the button
+      // click navigates to the real callback URL where the token is
+      // consumed for real.
+      async sendVerificationRequest({ identifier: email, url, provider }) {
+        const apiKey = provider.apiKey as string | undefined;
+        const fromCfg = provider.from;
+        const from =
+          typeof fromCfg === "string"
+            ? fromCfg
+            : fromCfg && typeof fromCfg === "object" && "email" in fromCfg
+              ? String((fromCfg as { email: unknown }).email ?? "")
+              : "";
+        if (!apiKey || !from) {
+          throw new Error("SendGrid not configured for magic-link sign-in");
+        }
+        const callback = new URL(url);
+        const token = callback.searchParams.get("token") ?? "";
+        const encodedEmail = encodeURIComponent(email);
+        const confirmUrl = new URL(callback.origin);
+        confirmUrl.pathname = "/sign-in/confirm";
+        confirmUrl.searchParams.set("token", token);
+        confirmUrl.searchParams.set("email", email);
+        const callbackUrl = callback.searchParams.get("callbackUrl");
+        if (callbackUrl) confirmUrl.searchParams.set("callbackUrl", callbackUrl);
+
+        const host = callback.host;
+        const subject = `Sign in to ${host}`;
+        const text = [
+          `Sign in to ${host} as ${email} by clicking this link:`,
+          ``,
+          confirmUrl.toString(),
+          ``,
+          `If you didn't request this, you can ignore the message.`,
+        ].join("\n");
+        const html = `
+          <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#eee;padding:32px">
+            <div style="max-width:480px;margin:0 auto">
+              <h1 style="font-size:20px;margin:0 0 16px">Sign in to Indie Comics Live</h1>
+              <p style="margin:0 0 24px;color:#aaa">
+                You're signing in as <strong style="color:#fff">${email}</strong>. Click the
+                button below to finish — it's a one-time link tied to this email.
+              </p>
+              <p style="margin:0 0 24px">
+                <a href="${confirmUrl.toString()}"
+                   style="display:inline-block;background:#ff3366;color:#fff;text-decoration:none;
+                          padding:14px 28px;border-radius:999px;font-weight:700">
+                  Sign in
+                </a>
+              </p>
+              <p style="margin:0;color:#666;font-size:12px">
+                If the button doesn't work, copy this URL into your browser:<br>
+                <span style="color:#888">${confirmUrl.toString()}</span>
+              </p>
+              <p style="margin:24px 0 0;color:#666;font-size:12px">
+                Didn't ask for this? You can safely ignore this email.
+              </p>
+            </div>
+          </body>`;
+
+        const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email }] }],
+            from: { email: from, name: "Indie Comics Live" },
+            subject,
+            content: [
+              { type: "text/plain", value: text },
+              { type: "text/html", value: html },
+            ],
+          }),
+        });
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          console.error("[auth] SendGrid magic-link send failed", {
+            status: r.status,
+            body: body.slice(0, 500),
+            to: encodedEmail,
+          });
+          throw new Error(`SendGrid send failed: ${r.status}`);
+        }
+      },
     }),
     Credentials({
       id: "admin-credentials",
