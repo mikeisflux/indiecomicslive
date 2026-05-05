@@ -36,7 +36,15 @@ export async function POST(req: Request) {
   // on those here because our outer nginx already has a rate limit
   // and the route is read-only-write — at worst someone sprays junk
   // emails into /admin/inbox which is admin-only anyway.
-  const fd = await req.formData().catch(() => null);
+  console.log("[sendgrid-inbound] hit", {
+    ct: req.headers.get("content-type"),
+    cl: req.headers.get("content-length"),
+    ua: req.headers.get("user-agent"),
+  });
+  const fd = await req.formData().catch((e) => {
+    console.warn("[sendgrid-inbound] formData parse failed", e);
+    return null;
+  });
   if (!fd) {
     return NextResponse.json({ error: "bad_form" }, { status: 400 });
   }
@@ -67,6 +75,14 @@ export async function POST(req: Request) {
     }
   }
 
+  console.log("[sendgrid-inbound] parsed", {
+    from: from.email,
+    to: to.email,
+    subject: subject.slice(0, 80),
+    spamScore,
+    attachments: 0, // counted below before we await the upload
+  });
+
   const created = await prisma.inboundEmail.create({
     data: {
       direction: "inbound",
@@ -80,6 +96,7 @@ export async function POST(req: Request) {
       raw: raw as Prisma.InputJsonValue,
     },
   });
+  console.log("[sendgrid-inbound] saved", { id: created.id, to: to.email });
 
   for (const file of attachmentFiles) {
     try {
