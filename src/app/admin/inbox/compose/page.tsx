@@ -14,6 +14,9 @@ function stripSubjectPrefix(s: string, re: RegExp): string {
   return s.replace(re, "").trim();
 }
 
+// Reply prefill: blank line at the top for the user's reply, then the
+// quoted original wrapped in a div the editor can leave alone. The
+// client focuses the editor at the very top of this string.
 function buildQuotedHtml(orig: {
   fromEmail: string;
   fromName: string | null;
@@ -33,7 +36,14 @@ function buildQuotedHtml(orig: {
         .split("\n")
         .map((l) => `&gt; ${escapeHtml(l)}`)
         .join("<br>");
-  return `<p></p><p></p><p style="color:#888">${escapeHtml(headerLine)}</p><blockquote style="border-left:3px solid #555;margin:0;padding:0 0 0 1em;color:#aaa">${body}</blockquote>`;
+  return [
+    `<p><br></p>`,
+    `<p><br></p>`,
+    `<div data-quoted="1" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:0.75em;margin-top:0.75em;color:#888">`,
+    `<p style="margin:0 0 0.5em 0;color:#888">${escapeHtml(headerLine)}</p>`,
+    `<blockquote style="border-left:3px solid #555;margin:0;padding:0 0 0 1em;color:#aaa">${body}</blockquote>`,
+    `</div>`,
+  ].join("");
 }
 
 function buildForwardHeaderHtml(orig: {
@@ -62,7 +72,14 @@ function buildForwardHeaderHtml(orig: {
         .split("\n")
         .map((l) => escapeHtml(l))
         .join("<br>");
-  return `<p></p><p></p><p style="color:#888">${lines.map((l) => escapeHtml(l)).join("<br>")}</p><div>${body}</div>`;
+  return [
+    `<p><br></p>`,
+    `<p><br></p>`,
+    `<div data-quoted="1" style="border-top:1px solid rgba(255,255,255,0.1);padding-top:0.75em;margin-top:0.75em;color:#888">`,
+    `<p style="margin:0 0 0.5em 0;color:#888">${lines.map((l) => escapeHtml(l)).join("<br>")}</p>`,
+    `<div>${body}</div>`,
+    `</div>`,
+  ].join("");
 }
 
 function escapeHtml(s: string): string {

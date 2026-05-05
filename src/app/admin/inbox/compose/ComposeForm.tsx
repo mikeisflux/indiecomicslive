@@ -40,6 +40,20 @@ export default function ComposeForm({
   useEffect(() => {
     if (editorRef.current && prefill?.html) {
       editorRef.current.innerHTML = prefill.html;
+      // Place the caret at the very start so the user types ABOVE the
+      // quoted original, not after it. Defer to next tick so the new
+      // DOM nodes are mounted before we select.
+      requestAnimationFrame(() => {
+        const el = editorRef.current;
+        if (!el) return;
+        el.focus();
+        const range = document.createRange();
+        range.setStart(el, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      });
     }
   }, [prefill?.html]);
 
