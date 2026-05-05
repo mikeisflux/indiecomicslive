@@ -65,13 +65,15 @@ JAVAP="$(command -v javap)"
 # ---------------------------------------------------------------------------
 log "locating CommunityLicenceService in deployed jars"
 COMMUNITY_JAR=""
-for jar in "$LIB_DIR"/*.jar "$AMS_HOME"/*.jar 2>/dev/null; do
+shopt -s nullglob
+for jar in "$LIB_DIR"/*.jar "$AMS_HOME"/*.jar; do
   [ -f "$jar" ] || continue
   if unzip -l "$jar" 2>/dev/null | grep -q 'io/antmedia/licence/CommunityLicenceService\.class'; then
     COMMUNITY_JAR="$jar"
     break
   fi
 done
+shopt -u nullglob
 if [ -z "$COMMUNITY_JAR" ]; then
   fail "CommunityLicenceService not found in any jar — bailing without changes"
   exit 1
