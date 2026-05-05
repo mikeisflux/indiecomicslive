@@ -77,9 +77,9 @@ export default async function AdminInbox({
         <p className="mt-12 rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-paper/60">
           No email yet. Configure SendGrid Inbound Parse to POST to
           <code className="mx-1 rounded bg-black/40 px-1">/api/webhooks/sendgrid-inbound</code>
-          and add an MX record for{" "}
-          <code className="rounded bg-black/40 px-1">mail.indiecomicslive.com → mx.sendgrid.net</code>.
-          Send a test email to <em>anything</em>@mail.indiecomicslive.com.
+          and add an MX record at the apex{" "}
+          <code className="rounded bg-black/40 px-1">indiecomicslive.com → mx.sendgrid.net</code>.
+          Send a test email to <em>anything</em>@indiecomicslive.com.
         </p>
       ) : (
         <ul className="mt-6 divide-y divide-white/5 rounded-2xl border border-white/10 bg-white/[0.02]">

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import ReviewActions from "./ReviewActions";
 import EditApplication from "./EditApplication";
 import BackfillChargeback from "./BackfillChargeback";
+import ResendDecisionEmail from "./ResendDecisionEmail";
 
 export const dynamic = "force-dynamic";
 
@@ -322,6 +323,17 @@ export default async function SellerApplicationDetail({
       ) && (
         <div className="mt-8">
           <ReviewActions applicationId={app.id} />
+        </div>
+      )}
+
+      {(["approved", "rejected", "needs_revision"] as string[]).includes(
+        app.status as unknown as string,
+      ) && (
+        <div className="mt-6">
+          <ResendDecisionEmail
+            applicationId={app.id}
+            status={app.status as unknown as string}
+          />
         </div>
       )}
 

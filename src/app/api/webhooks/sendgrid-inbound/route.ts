@@ -7,16 +7,16 @@ import { Prisma } from "@/generated/prisma";
 // Settings → Inbound Parse. Fields we care about: from, to, subject,
 // text, html, spam_score, charsets. Attachments are skipped for now.
 //
-// Configure SendGrid:
-//   1. DNS: MX record for `mail.indiecomicslive.com` → `mx.sendgrid.net.`
-//      priority 10. (Use any subdomain you don't need for outbound,
-//      e.g. `mail`, `inbound`, etc.)
+// Configure SendGrid (apex setup, what we actually run):
+//   1. DNS: MX record at the apex `indiecomicslive.com` → `mx.sendgrid.net.`
+//      priority 10. SPF TXT: `v=spf1 include:sendgrid.net ~all`.
 //   2. SendGrid → Settings → Inbound Parse → Add Host & URL
-//      Host: mail.indiecomicslive.com
-//      URL:  https://indiecomicslive.com/api/webhooks/sendgrid-inbound
-//      POST the raw, full MIME message: leave OFF (we want parsed)
+//      Subdomain: (blank — use apex)
+//      Domain:    indiecomicslive.com
+//      URL:       https://indiecomicslive.com/api/webhooks/sendgrid-inbound
+//      POST raw MIME: OFF (we want parsed)
 //      Check spam: ON
-// Test from any external email by sending to anything@mail.indiecomicslive.com.
+// Test from any external email by sending to anything@indiecomicslive.com.
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
