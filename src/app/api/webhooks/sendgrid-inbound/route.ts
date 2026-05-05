@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
+import { r2Key, r2PutObject } from "@/lib/r2";
 
 // SendGrid Inbound Parse webhook. SendGrid POSTs a multipart/form-data
 // body for every email it receives at the host(s) configured in
@@ -56,8 +57,19 @@ export async function POST(req: Request) {
     if (typeof v === "string") raw[k] = v.slice(0, 5000);
   }
 
-  await prisma.inboundEmail.create({
+  // Collect attachments. SendGrid sends them as fields named
+  // attachment1, attachment2, ... (File entries). Upload each to R2
+  // and create a DB row.
+  const attachmentFiles: File[] = [];
+  for (const [k, v] of fd.entries()) {
+    if (/^attachment\d+$/.test(k) && v instanceof File && v.size > 0) {
+      attachmentFiles.push(v);
+    }
+  }
+
+  const created = await prisma.inboundEmail.create({
     data: {
+      direction: "inbound",
       fromEmail: from.email,
       fromName: from.name,
       toEmail: to.email,
@@ -69,5 +81,31 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true });
+  for (const file of attachmentFiles) {
+    try {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const key = r2Key([
+        "emails",
+        created.id,
+        `${Date.now()}-${file.name || "attachment"}`,
+      ]);
+      await r2PutObject({ key, body: buf, contentType: file.type });
+      await prisma.inboundEmailAttachment.create({
+        data: {
+          emailId: created.id,
+          filename: file.name || "attachment",
+          contentType: file.type || null,
+          sizeBytes: buf.byteLength,
+          r2Key: key,
+        },
+      });
+    } catch (e) {
+      console.warn("[sendgrid-inbound] attachment upload failed", {
+        filename: file.name,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  return NextResponse.json({ ok: true, id: created.id });
 }

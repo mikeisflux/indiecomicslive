@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const accountId = process.env.R2_ACCOUNT_ID;
@@ -59,4 +64,47 @@ export function r2Key(parts: string[]): string {
     .map((p) => p.replace(/[^a-zA-Z0-9._-]/g, "_"))
     .filter(Boolean)
     .join("/");
+}
+
+// Upload bytes from the server (used by Inbound Parse webhook for
+// stashing email attachments).
+export async function r2PutObject(opts: {
+  key: string;
+  body: Buffer;
+  contentType?: string;
+}): Promise<void> {
+  if (!bucket) throw new Error("R2_BUCKET not set");
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: opts.key,
+      Body: opts.body,
+      ContentType: opts.contentType ?? "application/octet-stream",
+    }),
+  );
+}
+
+// Generate a short-lived presigned URL for a download. Used by the
+// admin inbox to let staff click an attachment link.
+export async function r2PresignedDownload(opts: {
+  key: string;
+  filename?: string;
+  expiresIn?: number;
+}): Promise<string> {
+  if (!bucket) throw new Error("R2_BUCKET not set");
+  const cmd = new GetObjectCommand({
+    Bucket: bucket,
+    Key: opts.key,
+    ResponseContentDisposition: opts.filename
+      ? `attachment; filename="${opts.filename.replace(/"/g, "")}"`
+      : undefined,
+  });
+  return getSignedUrl(r2, cmd, { expiresIn: opts.expiresIn ?? 60 * 10 });
+}
+
+export async function r2DeleteObject(key: string): Promise<void> {
+  if (!bucket) throw new Error("R2_BUCKET not set");
+  await r2
+    .send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+    .catch(() => null);
 }

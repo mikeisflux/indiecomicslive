@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import RefreshButton from "./RefreshButton";
 
 export const dynamic = "force-dynamic";
 
@@ -37,40 +38,53 @@ export default async function AdminInbox({
       skip: (page - 1) * PAGE_SIZE,
       select: {
         id: true,
+        direction: true,
         fromEmail: true,
         fromName: true,
         toEmail: true,
         subject: true,
         spamScore: true,
         readAt: true,
+        starred: true,
+        archivedAt: true,
         receivedAt: true,
+        _count: { select: { attachments: true } },
       },
     }),
     prisma.inboundEmail.count({ where }),
-    prisma.inboundEmail.count({ where: { readAt: null } }),
+    prisma.inboundEmail.count({ where: { readAt: null, direction: "inbound" } }),
   ]);
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Inbox</h1>
           <p className="mt-1 text-sm text-paper/60">
-            Email received via SendGrid Inbound Parse. {unread > 0 ? (
+            Email received + sent via SendGrid. {unread > 0 ? (
               <span className="font-semibold text-accent">{unread} unread.</span>
             ) : (
               <span>All caught up.</span>
             )}
           </p>
         </div>
-        <form className="flex items-center gap-2">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="search subject / address"
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-sm"
-          />
-        </form>
+        <div className="flex flex-wrap items-center gap-3">
+          <form className="flex items-center gap-2">
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="search subject / address"
+              className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-sm"
+            />
+          </form>
+          <RefreshButton />
+          <Link
+            href="/admin/inbox/compose"
+            className="rounded-full bg-accent px-4 py-1.5 text-xs font-bold text-ink"
+          >
+            + New email
+          </Link>
+        </div>
       </div>
 
       {emails.length === 0 ? (
@@ -97,8 +111,16 @@ export default async function AdminInbox({
                     aria-hidden
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3">
                       <span className={`truncate ${m.readAt ? "" : "font-semibold"}`}>
+                        {(m.direction as unknown as string) === "outbound" && (
+                          <span className="mr-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-300">
+                            sent
+                          </span>
+                        )}
+                        {m.starred && (
+                          <span className="mr-1 text-amber-300" aria-label="starred">★</span>
+                        )}
                         {m.fromName ? `${m.fromName} ` : ""}
                         <span className="text-paper/60">&lt;{m.fromEmail}&gt;</span>
                       </span>
@@ -109,6 +131,9 @@ export default async function AdminInbox({
                     <div className="truncate text-paper/80">{m.subject || "(no subject)"}</div>
                     <div className="mt-0.5 flex gap-3 text-xs text-paper/50">
                       <span>to {m.toEmail}</span>
+                      {m._count.attachments > 0 && (
+                        <span title="Has attachments">📎 {m._count.attachments}</span>
+                      )}
                       {m.spamScore !== null && (
                         <span
                           className={
@@ -121,6 +146,9 @@ export default async function AdminInbox({
                         >
                           spam {m.spamScore.toFixed(1)}
                         </span>
+                      )}
+                      {m.archivedAt && (
+                        <span className="text-paper/40">archived</span>
                       )}
                     </div>
                   </div>
