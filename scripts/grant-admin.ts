@@ -8,16 +8,18 @@
 // once with `super` to give yourself the highest privileges. From then
 // on you can promote others through /admin/users/[id].
 
-import "dotenv/config";
-import { config as loadEnv } from "dotenv";
 import path from "node:path";
+import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(process.cwd(), ".env.local"), quiet: true });
+loadEnv({ path: path.resolve(process.cwd(), ".env"), quiet: true });
 
 import { PrismaClient } from "../src/generated/prisma";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
 });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const email = process.argv[2];

@@ -1,4 +1,9 @@
 import { PrismaClient } from "@/generated/prisma";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+});
 
 declare global {
   // eslint-disable-next-line no-var
@@ -8,7 +13,7 @@ declare global {
 export const prisma =
   globalThis.__prisma ??
   new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL,
+    adapter,
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
