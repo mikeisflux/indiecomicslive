@@ -1,46 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { WebRTCAdaptorCtor } from "@/types/antmedia";
 
 type Props = {
   showId: string;
   poster?: string | null;
 };
-
-type WebRtcAdaptorEvent =
-  | "initialized"
-  | "play_started"
-  | "play_finished"
-  | "closed"
-  | "broadcast_object"
-  | "no_stream_exists"
-  | string;
-
-type WebRtcAdaptorCallback = (info: WebRtcAdaptorEvent, obj?: unknown) => void;
-
-interface WebRtcAdaptorCtor {
-  new (config: {
-    websocket_url: string;
-    mediaConstraints?: MediaStreamConstraints;
-    peerconnection_config?: RTCConfiguration;
-    sdp_constraints?: { OfferToReceiveAudio: boolean; OfferToReceiveVideo: boolean };
-    remoteVideoId?: string;
-    isPlayMode?: boolean;
-    debug?: boolean;
-    callback: WebRtcAdaptorCallback;
-    callbackError?: WebRtcAdaptorCallback;
-  }): {
-    play: (streamId: string, token?: string) => void;
-    stop: (streamId: string) => void;
-    publish?: (streamId: string, token?: string) => void;
-  };
-}
-
-declare global {
-  interface Window {
-    WebRTCAdaptor?: WebRtcAdaptorCtor;
-  }
-}
 
 // WebRTC playback for live shows. Loads Ant Media's webrtc_adaptor.js
 // from the same host that's serving the stream, since the script is
@@ -52,7 +18,7 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    let adaptor: InstanceType<WebRtcAdaptorCtor> | null = null;
+    let adaptor: InstanceType<WebRTCAdaptorCtor> | null = null;
 
     async function start() {
       const [tokenR, iceR] = await Promise.all([

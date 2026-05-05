@@ -1,31 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-declare global {
-  interface Window {
-    WebRTCAdaptor?: WebRtcAdaptorCtor;
-  }
-}
-
-type WebRtcAdaptorCallback = (info: string, obj?: unknown) => void;
-
-interface WebRtcAdaptorCtor {
-  new (config: {
-    websocket_url: string;
-    mediaConstraints?: MediaStreamConstraints;
-    peerconnection_config?: RTCConfiguration;
-    sdp_constraints?: { OfferToReceiveAudio: boolean; OfferToReceiveVideo: boolean };
-    localVideoId?: string;
-    isPlayMode?: boolean;
-    debug?: boolean;
-    callback: WebRtcAdaptorCallback;
-    callbackError?: WebRtcAdaptorCallback;
-  }): {
-    publish: (streamId: string, token?: string) => void;
-    stop: (streamId: string) => void;
-  };
-}
+import type { WebRTCAdaptorCtor } from "@/types/antmedia";
 
 type Props = {
   showId: string;
@@ -36,7 +12,7 @@ type Props = {
 // seller can still use OBS via the RTMP URL shown in their dashboard.
 export default function AntMediaPublisher({ showId }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const adaptorRef = useRef<InstanceType<WebRtcAdaptorCtor> | null>(null);
+  const adaptorRef = useRef<InstanceType<WebRTCAdaptorCtor> | null>(null);
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
