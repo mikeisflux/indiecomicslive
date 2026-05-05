@@ -41,11 +41,74 @@ export default function ApplyForm({
   chargebackCard,
   nmiPublicKey,
 }: Props) {
+  // Read previously-saved form state from localStorage at first mount.
+  // Done in useState lazy initializers so render 1 already shows the
+  // restored values — no race against an effect that would otherwise
+  // overwrite localStorage with empty defaults.
+  const STORAGE_KEY = "icl_apply_state_v1";
+  type SavedState = {
+    identity?: Partial<{
+      legalFirstName: string;
+      legalLastName: string;
+      dateOfBirth: string;
+      phone: string;
+      addressLine1: string;
+      addressLine2: string;
+      addressCity: string;
+      addressState: string;
+      addressZip: string;
+      addressCountry: string;
+    }>;
+    business?: Partial<{
+      storeName: string;
+      storeBio: string;
+      primaryWebsite: string;
+      twitter: string;
+      instagram: string;
+      youtube: string;
+      tiktok: string;
+      bluesky: string;
+      contentCategories: string[];
+      willListAdult: boolean;
+      unfulfilledCount: number;
+      pastDeliveryIssues: boolean;
+    }>;
+    step?: string;
+    agreeSeller?: boolean;
+    agreeContent?: boolean;
+    agreeNsfw?: boolean;
+  };
+  function readSavedState(): SavedState | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as SavedState) : null;
+    } catch {
+      return null;
+    }
+  }
+  const savedRef = useRef<SavedState | null>(null);
+  if (savedRef.current === null) savedRef.current = readSavedState();
+  const saved = savedRef.current;
+
   const [step, setStep] = useState<
     "identity" | "business" | "bank" | "chargeback" | "agree" | "review"
-  >(existing?.status ? "review" : "identity");
+  >(() => {
+    if (existing?.status) return "review";
+    const s = saved?.step;
+    if (
+      s === "identity" ||
+      s === "business" ||
+      s === "bank" ||
+      s === "chargeback" ||
+      s === "agree"
+    ) {
+      return s;
+    }
+    return "identity";
+  });
 
-  const [identity, setIdentity] = useState({
+  const [identity, setIdentity] = useState(() => ({
     legalFirstName: existing?.legalFirstName ?? "",
     legalLastName: existing?.legalLastName ?? "",
     dateOfBirth: "",
@@ -56,9 +119,10 @@ export default function ApplyForm({
     addressState: "",
     addressZip: "",
     addressCountry: "US",
-  });
+    ...(saved?.identity ?? {}),
+  }));
 
-  const [business, setBusiness] = useState({
+  const [business, setBusiness] = useState(() => ({
     storeName: existing?.storeName ?? "",
     storeBio: existing?.storeBio ?? "",
     primaryWebsite: "",
@@ -71,62 +135,31 @@ export default function ApplyForm({
     willListAdult: false,
     unfulfilledCount: 0,
     pastDeliveryIssues: false,
-  });
+    ...(saved?.business ?? {}),
+  }));
 
   const [bankSaved, setBankSaved] = useState(!!bank);
   const [chargebackSaved, setChargebackSaved] = useState(!!chargebackCard);
 
-  const [agreeSeller, setAgreeSeller] = useState(false);
-  const [agreeContent, setAgreeContent] = useState(false);
-  const [agreeNsfw, setAgreeNsfw] = useState(false);
+  const [agreeSeller, setAgreeSeller] = useState(saved?.agreeSeller ?? false);
+  const [agreeContent, setAgreeContent] = useState(saved?.agreeContent ?? false);
+  const [agreeNsfw, setAgreeNsfw] = useState(saved?.agreeNsfw ?? false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(existing?.status === "submitted");
 
-  // Persist Identity / Business / step in localStorage so a refresh,
-  // network error, or stripe-of-luck doesn't blow away everything the
-  // seller already typed. We hydrate on mount and write on every change.
-  const STORAGE_KEY = "icl_apply_state_v1";
-  const hydrated = useRef(false);
+  // Persist on every change. Skip the first run so the initial render
+  // doesn't immediately rewrite the same data we just loaded.
+  const skipFirstSave = useRef(true);
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     if (typeof window === "undefined") return;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as Partial<{
-          identity: typeof identity;
-          business: typeof business;
-          step: typeof step;
-          agreeSeller: boolean;
-          agreeContent: boolean;
-          agreeNsfw: boolean;
-        }>;
-        if (saved.identity) setIdentity((p) => ({ ...p, ...saved.identity }));
-        if (saved.business) setBusiness((p) => ({ ...p, ...saved.business }));
-        if (
-          saved.step &&
-          ["identity", "business", "bank", "chargeback", "agree"].includes(
-            saved.step,
-          )
-        ) {
-          // Don't override the review screen if we're already showing it.
-          if (!existing?.status) setStep(saved.step);
-        }
-        if (typeof saved.agreeSeller === "boolean") setAgreeSeller(saved.agreeSeller);
-        if (typeof saved.agreeContent === "boolean") setAgreeContent(saved.agreeContent);
-        if (typeof saved.agreeNsfw === "boolean") setAgreeNsfw(saved.agreeNsfw);
-      }
-    } catch {
-      /* ignore corrupt storage */
-    }
-    hydrated.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    if (!hydrated.current || typeof window === "undefined") return;
-    try {
-      localStorage.setItem(
+      window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({ identity, business, step, agreeSeller, agreeContent, agreeNsfw }),
       );
@@ -207,11 +240,33 @@ export default function ApplyForm({
       });
       const data = await r.json();
       if (!r.ok) {
-        setError(data.error ?? "Submission failed");
+        // The route returns { error, issues: [{ path, message }] } when zod
+        // rejects. Surface every offending field so the seller knows what
+        // to fix instead of the opaque 'invalid_body' string.
+        const issues = Array.isArray(data?.issues) ? data.issues : [];
+        if (issues.length > 0) {
+          setError(
+            issues
+              .map((i: { path: string; message: string }) =>
+                i.path ? `${i.path}: ${i.message}` : i.message,
+              )
+              .join(" · "),
+          );
+        } else {
+          setError(data.error ?? "Submission failed");
+        }
         return;
       }
       setSubmitted(true);
       setStep("review");
+      // Wipe the saved draft now that the server has the canonical copy.
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+        /* ignore */
+      }
     } finally {
       setSubmitting(false);
     }
