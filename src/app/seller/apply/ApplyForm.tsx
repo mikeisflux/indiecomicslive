@@ -70,6 +70,10 @@ export default function ApplyForm({
       youtube: string;
       tiktok: string;
       bluesky: string;
+      businessFilingState: string;
+      businessFilingNumber: string;
+      businessFilingUrl: string;
+      taxIdLast4: string;
       contentCategories: string[];
       willListAdult: boolean;
       unfulfilledCount: number;
@@ -133,6 +137,10 @@ export default function ApplyForm({
     youtube: "",
     tiktok: "",
     bluesky: "",
+    businessFilingState: "",
+    businessFilingNumber: "",
+    businessFilingUrl: "",
+    taxIdLast4: "",
     contentCategories: [] as string[],
     willListAdult: false,
     unfulfilledCount: 0,
@@ -313,6 +321,10 @@ export default function ApplyForm({
           storeName: business.storeName,
           storeBio: business.storeBio,
           primaryWebsite: normalizeUrl(business.primaryWebsite),
+          businessFilingState: business.businessFilingState || undefined,
+          businessFilingNumber: business.businessFilingNumber || undefined,
+          businessFilingUrl: normalizeUrl(business.businessFilingUrl),
+          taxIdLast4: business.taxIdLast4 || undefined,
           socialLinks,
           unfulfilledCount: business.unfulfilledCount,
           pastDeliveryIssues: business.pastDeliveryIssues,
@@ -549,6 +561,73 @@ export default function ApplyForm({
                 setBusiness({ ...business, tiktok: e.target.value })
               }
               className={inputClass}
+            />
+          </div>
+          <input
+            placeholder="Bluesky URL"
+            value={business.bluesky}
+            onChange={(e) =>
+              setBusiness({ ...business, bluesky: e.target.value })
+            }
+            className={inputClass}
+          />
+
+          <div className="rounded-lg border border-white/10 bg-black/30 p-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-paper/60">
+              Business registration (optional)
+            </p>
+            <p className="mt-1 text-xs text-paper/60">
+              If your shop is incorporated / LLC, share the filing details so
+              we can verify faster. Skip if you sell as an individual.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <input
+                placeholder="Filing state (e.g. Indiana)"
+                value={business.businessFilingState}
+                onChange={(e) =>
+                  setBusiness({
+                    ...business,
+                    businessFilingState: e.target.value,
+                  })
+                }
+                className={inputClass}
+              />
+              <input
+                placeholder="Filing number"
+                value={business.businessFilingNumber}
+                onChange={(e) =>
+                  setBusiness({
+                    ...business,
+                    businessFilingNumber: e.target.value,
+                  })
+                }
+                className={inputClass}
+              />
+            </div>
+            <input
+              placeholder="Filing URL (link to public registration record)"
+              value={business.businessFilingUrl}
+              onChange={(e) =>
+                setBusiness({
+                  ...business,
+                  businessFilingUrl: e.target.value,
+                })
+              }
+              className={`${inputClass} mt-3`}
+            />
+            <input
+              placeholder="EIN / Tax ID — last 4 digits only"
+              value={business.taxIdLast4}
+              maxLength={4}
+              inputMode="numeric"
+              pattern="\d{4}"
+              onChange={(e) =>
+                setBusiness({
+                  ...business,
+                  taxIdLast4: e.target.value.replace(/\D/g, "").slice(0, 4),
+                })
+              }
+              className={`${inputClass} mt-3`}
             />
           </div>
 
