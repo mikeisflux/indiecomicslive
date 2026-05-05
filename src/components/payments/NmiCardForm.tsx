@@ -135,17 +135,37 @@ export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
     // Inline styles applied INSIDE each CollectJS iframe. The iframes
     // are cross-origin so we can't reach in with our own CSS; CollectJS
     // copies these onto the input element it renders.
+    // Use a real dark colour, not transparent, because browser autofill
+    // overrides `background-color: transparent` with its yellow tint
+    // and our text becomes unreadable on top. The webkit autofill kill
+    // pair (text-fill-color + huge box-shadow inset) further blocks
+    // Chrome/Safari's autofill recolouring.
     const fieldCss = {
       color: "#f5f1e6", // matches our `text-paper`
-      "background-color": "transparent",
+      "-webkit-text-fill-color": "#f5f1e6",
+      "background-color": "#0a0a0a",
+      "-webkit-box-shadow": "0 0 0 1000px #0a0a0a inset",
       "font-size": "14px",
       "font-family":
         "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       padding: "0",
+      transition: "background-color 9999s ease-in-out 0s",
     };
-    const focusCss = { ...fieldCss, color: "#ffffff" };
-    const invalidCss = { ...fieldCss, color: "#f87171" };
-    const placeholderCss = { ...fieldCss, color: "rgba(245,241,230,0.4)" };
+    const focusCss = {
+      ...fieldCss,
+      color: "#ffffff",
+      "-webkit-text-fill-color": "#ffffff",
+    };
+    const invalidCss = {
+      ...fieldCss,
+      color: "#f87171",
+      "-webkit-text-fill-color": "#f87171",
+    };
+    const placeholderCss = {
+      ...fieldCss,
+      color: "rgba(245,241,230,0.7)",
+      "-webkit-text-fill-color": "rgba(245,241,230,0.7)",
+    };
 
     window.CollectJS.configure({
       variant: "inline",
