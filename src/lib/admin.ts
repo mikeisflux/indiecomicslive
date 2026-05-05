@@ -14,18 +14,19 @@ export type AdminUser = {
 };
 
 // Use in any /admin server component or API route handler. Redirects
-// unauthenticated users to /sign-in and non-admin users to /. Throws
-// nothing — relies on Next's redirect() to break execution.
+// unauthenticated users to /staff-sign-in (NOT the public magic-link
+// /sign-in) and non-admin users to /. Throws nothing — relies on
+// Next's redirect() to break execution.
 export async function requireAdmin(returnTo = "/admin"): Promise<AdminUser> {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect(`/sign-in?next=${encodeURIComponent(returnTo)}`);
+    redirect(`/staff-sign-in?next=${encodeURIComponent(returnTo)}`);
   }
   const me = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, email: true, handle: true, name: true, role: true },
   });
-  if (!me) redirect("/sign-in");
+  if (!me) redirect("/staff-sign-in");
   if (me.role !== "admin" && me.role !== "super_admin") {
     redirect("/");
   }
