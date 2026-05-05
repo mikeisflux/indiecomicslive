@@ -65,11 +65,13 @@ export default function PaymentsSettingsForm({ initial }: { initial: Settings })
     setPingResult("Testing…");
     const r = await fetch("/api/admin/settings/payments/test", { method: "POST" });
     const data = await r.json().catch(() => ({}));
-    setPingResult(
-      data?.ok
-        ? `OK (HTTP 2xx)`
-        : `Failed: ${data?.error ?? "unknown"} ${data?.status ? `(HTTP ${data.status})` : ""}`,
-    );
+    if (data?.ok) {
+      setPingResult(data?.message ?? "Credentials accepted.");
+    } else {
+      setPingResult(
+        `${data?.error ?? "Failed"}${data?.detail ? `: ${data.detail}` : ""}${data?.status ? ` (HTTP ${data.status})` : ""}`,
+      );
+    }
   }
 
   const inp =
@@ -243,11 +245,11 @@ export default function PaymentsSettingsForm({ initial }: { initial: Settings })
             onClick={pingDC}
             className="rounded-full border border-white/15 px-4 py-2 text-xs"
           >
-            Test DC ping
+            Verify credentials
           </button>
           {msg && <span className="text-xs text-paper/70">{msg}</span>}
           {pingResult && (
-            <span className="text-xs text-paper/70">DC: {pingResult}</span>
+            <span className="text-xs text-paper/70">{pingResult}</span>
           )}
         </div>
       </section>
