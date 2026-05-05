@@ -1,0 +1,631 @@
+// Prisma schema for indiecomicslive.
+// PG17 target. Run `npm run db:generate` to regenerate the client,
+// `npm run db:migrate` to author + apply a migration in dev.
+
+// Prisma 7: client output is project-local, datasource url moves to
+// prisma.config.ts so the schema is purely declarative.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  viewer
+  seller
+  admin
+  super_admin
+}
+
+enum ShowStatus {
+  scheduled
+  live
+  ended
+  cancelled
+}
+
+enum LotStatus {
+  queued
+  live
+  sold
+  unsold
+}
+
+enum OrderStatus {
+  pending_payment
+  payment_failed
+  paid
+  shipped
+  delivered
+  refunded
+  cancelled
+}
+
+enum PaymentProcessor {
+  nmi
+  divinitycoin
+}
+
+// Singleton row keyed by id="default". Holds platform-wide settings
+// the admin can flip from /admin/settings — currently used to switch
+// the active payment processor between NMI (PaymentCloud) and
+// DivinityCoin, and to store DC API credentials.
+model PlatformSetting {
+  id String @id @default("default")
+
+  activeProcessor PaymentProcessor @default(nmi) @map("active_processor")
+
+  divinityCoinEnabled       Boolean @default(false) @map("divinitycoin_enabled")
+  // DC issues three separate sk_-prefixed tokens per partner:
+  //   apiKey      — generic Partner API access (Bearer)
+  //   publicKey   — surfaced in client requests for low-trust ops
+  //   privateKey  — used to sign sensitive partner operations
+  // Stored as plaintext in DB; admin enters via /admin/settings/payments.
+  divinityCoinApiKey        String? @map("divinitycoin_api_key")
+  divinityCoinPublicKey     String? @map("divinitycoin_public_key")
+  divinityCoinPrivateKey    String? @map("divinitycoin_private_key")
+  divinityCoinPartnerId     String? @map("divinitycoin_partner_id")
+  divinityCoinWebhookSecret String? @map("divinitycoin_webhook_secret")
+  divinityCoinBaseUrl       String? @map("divinitycoin_base_url")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("platform_settings")
+}
+
+enum SellerApplicationStatus {
+  draft
+  submitted
+  under_review
+  needs_revision
+  approved
+  rejected
+}
+
+// User shape follows Auth.js v5 + Prisma adapter expectations
+// (id, name, email, emailVerified, image). Custom fields live alongside.
+// Pattern + extra fields ported from indiecrowdfund_2.0/prisma/schema/user.prisma.
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  heroImage     String?   @map("hero_image")
+  handle        String?   @unique
+  vanityUrl     String?   @unique @map("vanity_url")
+  bio           String?
+  location      String?
+  timezone      String?
+  websites      String[]
+  socialLinks   Json?     @map("social_links")
+  showNameOnly  Boolean   @default(false) @map("show_name_only")
+  role          UserRole  @default(viewer)
+
+  dateOfBirth   DateTime? @map("date_of_birth")
+
+  // Email preferences
+  emailUnsubscribedAt DateTime? @map("email_unsubscribed_at")
+
+  // Chat moderation
+  chatBannedAt   DateTime? @map("chat_banned_at")
+  chatBannedById String?   @map("chat_banned_by_id") @db.Uuid
+  chatBanReason  String?   @map("chat_ban_reason")
+
+  // Account locking (fraud / abuse)
+  lockedAt     DateTime? @map("locked_at")
+  lockedReason String?   @map("locked_reason")
+  lockedById   String?   @map("locked_by_id") @db.Uuid
+  lastKnownIP  String?   @map("last_known_ip")
+
+  // Failed login tracking
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lastFailedLoginAt   DateTime? @map("last_failed_login_at")
+
+  // Soft delete (mod-initiated, reversible)
+  deletedAt DateTime? @map("deleted_at")
+  // Hard self-delete (irreversible — wipes PII, keeps name/email for
+  // seller's order records; cancels pending orders).
+  accountDeletedAt DateTime? @map("account_deleted_at")
+
+  bannedAt  DateTime? @map("banned_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  accounts          Account[]
+  seller            Seller?
+  sellerApplication SellerApplication?
+  bankAccount       PaymentCloudBankAccount?
+  chargebackCard    SellerChargebackCard?
+  shows             Show[]              @relation("SellerShows")
+  bids              Bid[]
+  ordersAsBuyer     Order[]             @relation("Buyer")
+  ordersAsSeller    Order[]             @relation("Seller")
+  chatMessages      ChatMessage[]
+  paymentMethods    UserPaymentMethod[]
+  followingSellers  Follow[]            @relation("Follower")
+  followedBy        Follow[]            @relation("Followed")
+  lotsAsHighBidder  Lot[]               @relation("HighBidder")
+  savedAddresses    UserAddress[]
+
+  @@index([deletedAt])
+  @@index([lockedAt])
+  @@index([accountDeletedAt])
+  @@map("users")
+}
+
+// Auth.js Prisma adapter tables.
+model Account {
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+// IP blocklist for banned users / abuse mitigation.
+model IPBlocklist {
+  id         String    @id @default(uuid()) @db.Uuid
+  ipAddress  String    @unique @map("ip_address")
+  userId     String?   @map("user_id") @db.Uuid
+  reason     String?
+  bannedById String?   @map("banned_by_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime? @map("expires_at")
+
+  @@index([ipAddress])
+  @@index([expiresAt])
+  @@map("ip_blocklist")
+}
+
+// User-supplied addresses (shipping). Multiple per user; one default.
+model UserAddress {
+  id          String  @id @default(uuid()) @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  label       String?
+  fullName    String  @map("full_name")
+  line1       String
+  line2       String?
+  city        String
+  state       String
+  postalCode  String  @map("postal_code")
+  country     String
+  phone       String?
+  isDefault   Boolean @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_addresses")
+}
+
+// "Apply to sell" flow. Captures everything we need to KYC a seller
+// before they're allowed to create shows. Modeled on the
+// indiecrowdfund_2.0 creator-verification process: legal name + DOB,
+// business filing, ID upload, social-media links, prior platforms,
+// agreement acceptance. Bank account + chargeback card are stored in
+// their own encrypted models.
+model SellerApplication {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+
+  // Identity
+  legalFirstName String  @map("legal_first_name")
+  legalLastName  String  @map("legal_last_name")
+  dateOfBirth    DateTime @map("date_of_birth")
+  phone          String
+
+  // Address
+  addressLine1   String  @map("address_line1")
+  addressLine2   String? @map("address_line2")
+  addressCity    String  @map("address_city")
+  addressState   String  @map("address_state")
+  addressZip     String  @map("address_zip")
+  addressCountry String  @map("address_country")
+
+  // Business
+  storeName            String  @map("store_name")
+  storeBio             String  @map("store_bio")
+  businessFilingState  String? @map("business_filing_state")
+  businessFilingNumber String? @map("business_filing_number")
+  businessFilingUrl    String? @map("business_filing_url")
+  taxIdLast4           String? @map("tax_id_last4")
+
+  // Online presence
+  primaryWebsite     String?  @map("primary_website")
+  socialLinks        Json?    @map("social_links")
+  priorPlatforms     Json?    @map("prior_platforms")
+  unfulfilledCount   Int      @default(0) @map("unfulfilled_count")
+  pastDeliveryIssues Boolean  @default(false) @map("past_delivery_issues")
+
+  // Content categories the seller plans to list. Free-form for MVP.
+  contentCategories String[] @map("content_categories")
+  willListAdult     Boolean  @default(false) @map("will_list_adult")
+
+  // Agreement
+  agreedToSellerAgreementAt DateTime? @map("agreed_to_seller_agreement_at")
+  agreedToContentPolicyAt   DateTime? @map("agreed_to_content_policy_at")
+  agreedToNsfwPolicyAt      DateTime? @map("agreed_to_nsfw_policy_at")
+  agreementVersion          String?   @map("agreement_version")
+
+  // Review
+  status          SellerApplicationStatus @default(draft)
+  submittedAt     DateTime?               @map("submitted_at")
+  reviewedAt      DateTime?               @map("reviewed_at")
+  reviewedById    String?                 @map("reviewed_by_id") @db.Uuid
+  reviewerNotes   String?                 @map("reviewer_notes")
+  rejectionReason String?                 @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+  @@map("seller_applications")
+}
+
+// Encrypted at rest via src/lib/encryption.ts (AES-256-GCM,
+// BANK_ACCOUNT_ENCRYPTION_KEY). The naked PII never lives in plaintext.
+// Display fields (bankNameDisplay, accountLastFour) duplicate the
+// non-sensitive bits for UI without forcing a decrypt round-trip.
+model PaymentCloudBankAccount {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+
+  // Which processor owns this row. NMI uses the encrypted PII directly
+  // for ACH out; DC stores a Stripe Connect external account id in
+  // `divinityCoinExternalAccountId` and the encrypted PII columns hold
+  // the values used to bootstrap the Connect onboarding.
+  processor                     PaymentProcessor @default(nmi)
+  divinityCoinExternalAccountId String?          @map("divinitycoin_external_account_id")
+
+  bankNameEncrypted               String @map("bank_name_encrypted")
+  accountHolderFirstNameEncrypted String @map("account_holder_first_name_encrypted")
+  accountHolderLastNameEncrypted  String @map("account_holder_last_name_encrypted")
+  accountNumberEncrypted          String @map("account_number_encrypted")
+  routingNumberEncrypted          String @map("routing_number_encrypted")
+
+  billingLine1Encrypted   String  @map("billing_line1_encrypted")
+  billingLine2Encrypted   String? @map("billing_line2_encrypted")
+  billingCityEncrypted    String  @map("billing_city_encrypted")
+  billingStateEncrypted   String  @map("billing_state_encrypted")
+  billingZipEncrypted     String  @map("billing_zip_encrypted")
+  billingCountryEncrypted String  @map("billing_country_encrypted")
+
+  bankNameDisplay  String? @map("bank_name_display")
+  accountLastFour  String? @map("account_last_four")
+  accountType      String  @default("checking") @map("account_type")
+
+  isVerified         Boolean   @default(false) @map("is_verified")
+  verifiedAt         DateTime? @map("verified_at")
+  verificationMethod String?   @map("verification_method")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payment_cloud_bank_accounts")
+}
+
+// Seller chargeback recovery card. PaymentCloud requires a card on
+// file to recoup chargebacks if the rolling reserve isn't enough. PAN
+// never touches our DB — only the processor's vault id + display data.
+// `processor` says which gateway owns vaultId: 'nmi' uses an NMI
+// customer_vault_id, 'divinitycoin' uses a Stripe payment_method id
+// generated against DC's Stripe Connect account.
+model SellerChargebackCard {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+
+  processor          PaymentProcessor @default(nmi)
+  nmiCustomerVaultId String           @unique @map("nmi_customer_vault_id")
+
+  cardBrand    String? @map("card_brand")
+  cardLastFour String  @map("card_last_four")
+  expMonth     Int     @map("exp_month")
+  expYear      Int     @map("exp_year")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seller_chargeback_cards")
+}
+
+model Seller {
+  userId           String   @id @map("user_id") @db.Uuid
+  storeName        String   @map("store_name")
+  bio              String?
+  payoutProvider   String?  @map("payout_provider")
+  payoutAccountRef String?  @map("payout_account_ref")
+  approved         Boolean  @default(false)
+  approvedAt       DateTime? @map("approved_at")
+  approvedById     String?   @map("approved_by_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sellers")
+}
+
+model Show {
+  id            String     @id @default(uuid()) @db.Uuid
+  sellerId      String     @map("seller_id") @db.Uuid
+  title         String
+  description   String?
+  coverImageUrl String?    @map("cover_image_url")
+  status        ShowStatus @default(scheduled)
+  scheduledFor  DateTime?  @map("scheduled_for")
+  startedAt     DateTime?  @map("started_at")
+  endedAt       DateTime?  @map("ended_at")
+  streamId      String?    @map("stream_id")
+  recordingUrl  String?    @map("recording_url")
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  seller       User          @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
+  lots         Lot[]
+  chatMessages ChatMessage[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("shows")
+}
+
+model Lot {
+  id                String    @id @default(uuid()) @db.Uuid
+  showId            String    @map("show_id") @db.Uuid
+  position          Int
+  title             String
+  description       String?
+  imageUrl          String?   @map("image_url")
+  startingBidCents  Int       @map("starting_bid_cents")
+  minIncrementCents Int       @default(100) @map("min_increment_cents")
+  softCloseSeconds  Int       @default(10) @map("soft_close_seconds")
+  status            LotStatus @default(queued)
+  currentBidCents   Int?      @map("current_bid_cents")
+  currentBidUserId  String?   @map("current_bid_user_id") @db.Uuid
+  bidCount          Int       @default(0) @map("bid_count")
+  startedAt         DateTime? @map("started_at")
+  endsAt            DateTime? @map("ends_at")
+  soldAt            DateTime? @map("sold_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  show          Show    @relation(fields: [showId], references: [id], onDelete: Cascade)
+  currentBidder User?   @relation("HighBidder", fields: [currentBidUserId], references: [id])
+  bids          Bid[]
+  orders        Order[]
+
+  @@index([showId])
+  @@index([status])
+  @@map("lots")
+}
+
+model Bid {
+  id           String   @id @default(uuid()) @db.Uuid
+  lotId        String   @map("lot_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  amountCents  Int      @map("amount_cents")
+  accepted     Boolean
+  rejectReason String?  @map("reject_reason")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lot  Lot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lotId])
+  @@index([userId])
+  @@map("bids")
+}
+
+model Order {
+  id                      String            @id @default(uuid()) @db.Uuid
+  lotId                   String            @map("lot_id") @db.Uuid
+  buyerId                 String            @map("buyer_id") @db.Uuid
+  sellerId                String            @map("seller_id") @db.Uuid
+  amountCents             Int               @map("amount_cents")
+  status                  OrderStatus       @default(pending_payment)
+  paymentProcessor        PaymentProcessor? @map("payment_processor")
+  nmiCustomerVaultId      String?           @map("nmi_customer_vault_id")
+  nmiTransactionId        String?           @map("nmi_transaction_id")
+  nmiInitialTransactionId String?           @map("nmi_initial_transaction_id")
+  paidAt                  DateTime?         @map("paid_at")
+  refundedAt              DateTime?         @map("refunded_at")
+  nmiRefundId             String?           @map("nmi_refund_id")
+  shippingAddress         String?           @map("shipping_address")
+  trackingNumber          String?           @map("tracking_number")
+  createdAt               DateTime          @default(now()) @map("created_at")
+
+  lot    Lot  @relation(fields: [lotId], references: [id])
+  buyer  User @relation("Buyer", fields: [buyerId], references: [id])
+  seller User @relation("Seller", fields: [sellerId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@map("orders")
+}
+
+model ChatMessage {
+  id        String    @id @default(uuid()) @db.Uuid
+  showId    String    @map("show_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  body      String
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  show Show @relation(fields: [showId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([showId, createdAt])
+  @@map("chat_messages")
+}
+
+model UserPaymentMethod {
+  id                   String           @id @default(uuid()) @db.Uuid
+  userId               String           @map("user_id") @db.Uuid
+  processor            PaymentProcessor
+  vaultId              String           @map("vault_id")
+  cardBrand            String?          @map("card_brand")
+  cardLast4            String?          @map("card_last4")
+  cardExpMonth         Int?             @map("card_exp_month")
+  cardExpYear          Int?             @map("card_exp_year")
+  initialTransactionId String?          @map("initial_transaction_id")
+  isDefault            Boolean          @default(false) @map("is_default")
+  deletedAt            DateTime?        @map("deleted_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([processor, vaultId])
+  @@index([userId])
+  @@map("user_payment_methods")
+}
+
+model Follow {
+  followerId String   @map("follower_id") @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  seller   User @relation("Followed", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, sellerId])
+  @@map("follows")
+}
+
+// Admin action audit log. Every privileged action that touches a
+// Mailbox row. Stores both inbound mail (received via SendGrid Inbound
+// Parse webhook) and outbound mail (composed in /admin/inbox/compose,
+// sent via SendGrid). One table so staff can scroll a unified history.
+model InboundEmail {
+  id          String   @id @default(uuid()) @db.Uuid
+  direction   EmailDirection @default(inbound)
+  fromEmail   String   @map("from_email")
+  fromName    String?  @map("from_name")
+  toEmail     String   @map("to_email")
+  ccEmails    String[] @default([]) @map("cc_emails")
+  bccEmails   String[] @default([]) @map("bcc_emails")
+  subject     String   @default("")
+  text        String?
+  html        String?
+  spamScore   Float?   @map("spam_score")
+  raw         Json?
+  readAt      DateTime? @map("read_at")
+  starred     Boolean  @default(false)
+  archivedAt  DateTime? @map("archived_at")
+  receivedAt  DateTime @default(now()) @map("received_at")
+
+  attachments InboundEmailAttachment[]
+
+  @@index([receivedAt])
+  @@index([toEmail])
+  @@index([direction, archivedAt])
+  @@map("inbound_emails")
+}
+
+enum EmailDirection {
+  inbound
+  outbound
+}
+
+model InboundEmailAttachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  emailId     String   @map("email_id") @db.Uuid
+  filename    String
+  contentType String?  @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  r2Key       String   @map("r2_key")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  email InboundEmail @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+  @@map("inbound_email_attachments")
+}
+
+// user, order, or seller-facing setting writes one row. Append-only;
+// no updates / deletes from app code.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String   @map("actor_id") @db.Uuid
+  action    String
+  targetKind String? @map("target_kind")
+  targetId   String? @map("target_id")
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([targetKind, targetId])
+  @@map("audit_logs")
+}
+
+// Auto-banned IPs from the bot blocker. Distinct from IPBlocklist
+// (admin-initiated). Has a 24h expiration by default and tracks
+// violation count for repeat offenders. The botblock-watcher service
+// reads /tmp/botblock-pending every 5s and adds an iptables DROP
+// rule, so blocks land in the kernel firewall too.
+model BlockedIP {
+  id             String   @id @default(uuid()) @db.Uuid
+  ipAddress      String   @unique @map("ip_address")
+  reason         String
+  violationCount Int      @default(1) @map("violation_count")
+  blockedAt      DateTime @default(now()) @map("blocked_at")
+  expiresAt      DateTime @map("expires_at")
+
+  // Last-seen metadata for triage
+  lastUserAgent String? @map("last_user_agent")
+  lastPath      String? @map("last_path")
+  lastActionId  String? @map("last_action_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([ipAddress])
+  @@index([expiresAt])
+  @@map("blocked_ips")
+}
+
+// Audit log of detected suspicious behavior. Three hits within
+// SUSPICIOUS_WINDOW_MS escalates to a BlockedIP entry.
+model SuspiciousActivity {
+  id        String   @id @default(uuid()) @db.Uuid
+  ipAddress String   @map("ip_address")
+  reason    String
+  actionId  String?  @map("action_id")
+  path      String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ipAddress, createdAt])
+  @@map("suspicious_activity")
+}

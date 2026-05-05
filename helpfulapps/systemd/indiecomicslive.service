@@ -1,0 +1,31 @@
+[Unit]
+Description=Indie Comics Live — Next.js app
+Documentation=https://github.com/mikeisflux/indiecomicslive
+After=network.target
+
+[Service]
+Type=simple
+User=icl
+Group=icl
+WorkingDirectory=/opt/indiecomicslive
+EnvironmentFile=/opt/indiecomicslive/.env.local
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/indiecomicslive/app.log
+StandardError=append:/var/log/indiecomicslive/app.log
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=false
+# /tmp must be shared so the app can write to /tmp/botblock-pending
+ReadWritePaths=/var/log/indiecomicslive /tmp /opt/indiecomicslive/.next
+
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+[Unit]
+Description=Indie Comics Live — WebSocket server (chat + bids)
+Documentation=https://github.com/mikeisflux/indiecomicslive
+After=network.target
+
+[Service]
+Type=simple
+User=icl
+Group=icl
+WorkingDirectory=/opt/indiecomicslive
+EnvironmentFile=/opt/indiecomicslive/.env.local
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run ws
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/indiecomicslive/ws.log
+StandardError=append:/var/log/indiecomicslive/ws.log
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=false
+ReadWritePaths=/var/log/indiecomicslive /tmp
+
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

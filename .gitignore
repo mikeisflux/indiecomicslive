@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+src/generated
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+.vscode
+.idea
+.turbo
+.vercel
+coverage
+drizzle/meta
