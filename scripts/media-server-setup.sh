@@ -108,7 +108,31 @@ fi
 # 5. DNS check
 # ---------------------------------------------------------------------------
 log "checking DNS for $STREAM_HOST"
-RESOLVED="$(dig +short -t A "$STREAM_HOST" @1.1.1.1 | tail -1)"
+# Reset DNS resolvers — Hetzner's 185.12.64.1 stays reachable even when
+# 1.1.1.1 is blocked outbound.
+mkdir -p /etc/systemd/resolved.conf.d
+cat >/etc/systemd/resolved.conf.d/icl.conf <<'CONF'
+[Resolve]
+DNS=185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8
+FallbackDNS=9.9.9.9
+DNSStubListener=yes
+CONF
+systemctl restart systemd-resolved 2>/dev/null || true
+cat >/etc/resolv.conf <<'CONF'
+nameserver 185.12.64.1
+nameserver 185.12.64.2
+nameserver 1.1.1.1
+CONF
+
+set +e
+RESOLVED=""
+for r in 185.12.64.1 185.12.64.2 1.1.1.1 8.8.8.8 9.9.9.9; do
+  RESOLVED=$(dig +short +time=3 +tries=1 -t A "$STREAM_HOST" @"$r" 2>/dev/null \
+             | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | head -1)
+  [ -n "$RESOLVED" ] && break
+done
+set -e
+
 if [ "$RESOLVED" != "$PUBLIC_IPV4" ]; then
   cat <<EOF >&2
 
