@@ -201,10 +201,28 @@ export default function ApplyForm({
     );
   }
 
+  // Convert "example.com", " example.com ", or empty -> "https://example.com"
+  // / undefined respectively. Zod's .url() rejects bare domains and empty
+  // strings; this lets sellers type their site without remembering https://.
+  function normalizeUrl(s: string | undefined | null): string | undefined {
+    if (s === null || s === undefined) return undefined;
+    const t = String(s).trim();
+    if (!t) return undefined;
+    if (/^https?:\/\//i.test(t)) return t;
+    return `https://${t}`;
+  }
+
   async function submitApp() {
     setSubmitting(true);
     setError(null);
     try {
+      const socialLinks = {
+        twitter: normalizeUrl(business.twitter),
+        instagram: normalizeUrl(business.instagram),
+        youtube: normalizeUrl(business.youtube),
+        tiktok: normalizeUrl(business.tiktok),
+        bluesky: normalizeUrl(business.bluesky),
+      };
       const r = await fetch("/api/seller/applications", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -221,14 +239,8 @@ export default function ApplyForm({
           addressCountry: identity.addressCountry,
           storeName: business.storeName,
           storeBio: business.storeBio,
-          primaryWebsite: business.primaryWebsite || undefined,
-          socialLinks: {
-            twitter: business.twitter || undefined,
-            instagram: business.instagram || undefined,
-            youtube: business.youtube || undefined,
-            tiktok: business.tiktok || undefined,
-            bluesky: business.bluesky || undefined,
-          },
+          primaryWebsite: normalizeUrl(business.primaryWebsite),
+          socialLinks,
           unfulfilledCount: business.unfulfilledCount,
           pastDeliveryIssues: business.pastDeliveryIssues,
           contentCategories: business.contentCategories,
