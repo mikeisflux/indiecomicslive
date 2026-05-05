@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ReviewActions from "./ReviewActions";
+import EditApplication from "./EditApplication";
 
 export const dynamic = "force-dynamic";
 
@@ -294,11 +295,43 @@ export default async function SellerApplicationDetail({
         </Section>
       </div>
 
-      {(app.status === "submitted" || app.status === "under_review") && (
+      {(app.status === "submitted" ||
+        app.status === "under_review" ||
+        app.status === "needs_revision") && (
         <div className="mt-8">
           <ReviewActions applicationId={app.id} />
         </div>
       )}
+
+      <div className="mt-6 flex flex-col gap-3">
+        <EditApplication
+          applicationId={app.id}
+          initial={{
+            legalFirstName: app.legalFirstName,
+            legalLastName: app.legalLastName,
+            phone: app.phone,
+            addressLine1: app.addressLine1,
+            addressLine2: app.addressLine2,
+            addressCity: app.addressCity,
+            addressState: app.addressState,
+            addressZip: app.addressZip,
+            addressCountry: app.addressCountry,
+            storeName: app.storeName,
+            storeBio: app.storeBio,
+            primaryWebsite: app.primaryWebsite,
+            businessFilingState: app.businessFilingState,
+            businessFilingNumber: app.businessFilingNumber,
+            businessFilingUrl: app.businessFilingUrl,
+            taxIdLast4: app.taxIdLast4,
+            unfulfilledCount: app.unfulfilledCount ?? 0,
+            pastDeliveryIssues: app.pastDeliveryIssues ?? false,
+            contentCategories: app.contentCategories,
+            willListAdult: app.willListAdult ?? false,
+            rejectionReason: app.rejectionReason,
+            reviewerNotes: app.reviewerNotes,
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type Decision = "approve" | "reject" | "request_revision";
+
 export default function ReviewActions({
   applicationId,
 }: {
   applicationId: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [busy, setBusy] = useState<Decision | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
 
-  async function decide(decision: "approve" | "reject") {
+  async function decide(decision: Decision) {
     setBusy(decision);
     setError(null);
     const r = await fetch(
@@ -48,7 +50,7 @@ export default function ReviewActions({
         rows={3}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Internal reviewer notes (visible to admins, not the applicant)"
+        placeholder="Notes — emailed to the applicant on Reject and Request changes; visible to admins on Approve"
         className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
       />
       <input
@@ -58,13 +60,21 @@ export default function ReviewActions({
         className="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
       />
       {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
           onClick={() => decide("approve")}
           disabled={busy !== null}
           className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50"
         >
           {busy === "approve" ? "Approving…" : "Approve"}
+        </button>
+        <button
+          onClick={() => decide("request_revision")}
+          disabled={busy !== null || !notes.trim()}
+          title={!notes.trim() ? "Add notes describing what needs to change" : ""}
+          className="rounded-full border border-amber-500/60 bg-amber-500/10 px-5 py-2 text-sm font-bold text-amber-300 disabled:opacity-50"
+        >
+          {busy === "request_revision" ? "Requesting…" : "Request changes"}
         </button>
         <button
           onClick={() => decide("reject")}
@@ -74,6 +84,11 @@ export default function ReviewActions({
           {busy === "reject" ? "Rejecting…" : "Reject"}
         </button>
       </div>
+      <p className="mt-2 text-xs text-paper/50">
+        <strong>Request changes</strong> sends the applicant an email with a
+        link to /seller/apply and your notes — their previously-entered
+        details stay saved.
+      </p>
     </section>
   );
 }

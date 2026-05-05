@@ -51,6 +51,7 @@ enum SellerApplicationStatus {
   draft
   submitted
   under_review
+  needs_revision
   approved
   rejected
 }
