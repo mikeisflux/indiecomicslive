@@ -65,17 +65,35 @@ JAVAP="$(command -v javap)"
 # ---------------------------------------------------------------------------
 log "locating CommunityLicenceService anywhere under $AMS_HOME"
 COMMUNITY_JAR=""
-while IFS= read -r jar; do
-  if unzip -l "$jar" 2>/dev/null | grep -q 'io/antmedia/licence/CommunityLicenceService\.class'; then
-    COMMUNITY_JAR="$jar"
-    break
-  fi
-done < <(find "$AMS_HOME" -type f -name '*.jar' 2>/dev/null)
+
+# Fast path: the deployed installer puts the main AMS jar at this exact path.
+if [ -f "$AMS_HOME/ant-media-server.jar" ] && \
+   unzip -l "$AMS_HOME/ant-media-server.jar" 2>/dev/null \
+     | grep -q 'CommunityLicenceService'; then
+  COMMUNITY_JAR="$AMS_HOME/ant-media-server.jar"
+fi
+
+# Fallback: recurse anywhere under AMS_HOME.
 if [ -z "$COMMUNITY_JAR" ]; then
-  fail "CommunityLicenceService not found in any jar — bailing without changes"
+  echo "  fast path missed — scanning every jar"
+  while IFS= read -r jar; do
+    [ -f "$jar" ] || continue
+    listing="$(unzip -l "$jar" 2>/dev/null || true)"
+    if echo "$listing" | grep -q 'CommunityLicenceService'; then
+      COMMUNITY_JAR="$jar"
+      echo "  found in: $jar"
+      break
+    fi
+  done < <(find "$AMS_HOME" -type f -name '*.jar' 2>/dev/null)
+fi
+
+if [ -z "$COMMUNITY_JAR" ]; then
+  fail "CommunityLicenceService not found in any jar"
+  echo "  jars considered:"
+  find "$AMS_HOME" -type f -name '*.jar' 2>/dev/null | sed 's/^/    /' | head -20
   exit 1
 fi
-echo "  found in: $COMMUNITY_JAR"
+echo "  using: $COMMUNITY_JAR"
 
 # Dump deployed Community + ILicenceService signatures for diagnostic record
 mkdir -p "$WORK/dump"
