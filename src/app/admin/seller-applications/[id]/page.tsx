@@ -295,9 +295,9 @@ export default async function SellerApplicationDetail({
         </Section>
       </div>
 
-      {(app.status === "submitted" ||
-        app.status === "under_review" ||
-        app.status === "needs_revision") && (
+      {(["submitted", "under_review", "needs_revision"] as string[]).includes(
+        app.status as unknown as string,
+      ) && (
         <div className="mt-8">
           <ReviewActions applicationId={app.id} />
         </div>
