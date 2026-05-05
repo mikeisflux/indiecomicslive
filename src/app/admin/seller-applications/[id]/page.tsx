@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ReviewActions from "./ReviewActions";
 import EditApplication from "./EditApplication";
+import BackfillChargeback from "./BackfillChargeback";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,16 @@ export default async function SellerApplicationDetail({
     },
   });
   if (!app) notFound();
+
+  // Detect a chargeback card that got mis-routed to the buyer table
+  // by the earlier flow bug. Used to surface a backfill button below.
+  const misroutedBuyerCard = !app.user.chargebackCard
+    ? await prisma.userPaymentMethod.findFirst({
+        where: { userId: app.user.id, deletedAt: null },
+        select: { cardBrand: true, cardLast4: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
 
   return (
     <div>
@@ -229,10 +240,21 @@ export default async function SellerApplicationDetail({
               />
             </>
           ) : (
-            <p className="text-sm text-amber-300">
-              No chargeback card on file. PaymentCloud requires this before
-              approval.
-            </p>
+            <>
+              <p className="text-sm text-amber-300">
+                No chargeback card on file. PaymentCloud requires this before
+                approval.
+              </p>
+              {misroutedBuyerCard && (
+                <BackfillChargeback
+                  applicationId={app.id}
+                  buyerCard={{
+                    brand: misroutedBuyerCard.cardBrand,
+                    lastFour: misroutedBuyerCard.cardLast4,
+                  }}
+                />
+              )}
+            </>
           )}
         </Section>
 
