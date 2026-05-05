@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import ShipFromForm from "./ShipFromForm";
 
@@ -10,7 +11,11 @@ export const metadata = {
 
 export default async function ShipFromPage() {
   const me = await requireOnboardedUser("/seller/ship-from");
-  const initial = ((me as { shipFromAddress: unknown }).shipFromAddress ?? null) as
+  const meRow = await prisma.user.findUnique({
+    where: { id: me.id },
+    select: { shipFromAddress: true },
+  });
+  const initial = (meRow?.shipFromAddress ?? null) as
     | Record<string, string>
     | null;
 

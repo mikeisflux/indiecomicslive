@@ -30,10 +30,13 @@ export default async function SellerOrderDetail({
   });
   if (!order || order.sellerId !== me.id) notFound();
 
-  const shipFromAddress = (me as { shipFromAddress: unknown }).shipFromAddress as
+  const meRow = await prisma.user.findUnique({
+    where: { id: me.id },
+    select: { shipFromAddress: true },
+  });
+  const shipFromAddress = (meRow?.shipFromAddress ?? null) as
     | Record<string, string>
-    | null
-    | undefined;
+    | null;
   const hasShipFrom =
     !!shipFromAddress?.street1 && !!shipFromAddress.city && !!shipFromAddress.postalCode;
 
