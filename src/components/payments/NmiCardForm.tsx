@@ -132,14 +132,45 @@ export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
     // `paymentSelector` and `fieldsAvailableCallback` trip the JS-API
     // validator with "Unexpected fields for collectjs" despite being
     // documented as data-* attributes.
+    // Inline styles applied INSIDE each CollectJS iframe. The iframes
+    // are cross-origin so we can't reach in with our own CSS; CollectJS
+    // copies these onto the input element it renders.
+    const fieldCss = {
+      color: "#f5f1e6", // matches our `text-paper`
+      "background-color": "transparent",
+      "font-size": "14px",
+      "font-family":
+        "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      padding: "0",
+    };
+    const focusCss = { ...fieldCss, color: "#ffffff" };
+    const invalidCss = { ...fieldCss, color: "#f87171" };
+    const placeholderCss = { ...fieldCss, color: "rgba(245,241,230,0.4)" };
+
     window.CollectJS.configure({
       variant: "inline",
-      styleSniffer: "true",
+      // Don't sniff parent CSS — sniffing was producing transparent + white
+      // text inside a transparent iframe = invisible CVV. Always pass
+      // explicit customCss instead.
+      styleSniffer: "false",
       fields: {
-        ccnumber: { selector: "#nmi-ccnumber", placeholder: "Card number" },
-        ccexp: { selector: "#nmi-ccexp", placeholder: "MM / YY" },
-        cvv: { selector: "#nmi-cvv", placeholder: "CVV" },
+        ccnumber: {
+          selector: "#nmi-ccnumber",
+          placeholder: "Card number",
+        },
+        ccexp: {
+          selector: "#nmi-ccexp",
+          placeholder: "MM / YY",
+        },
+        cvv: {
+          selector: "#nmi-cvv",
+          placeholder: "CVV",
+        },
       },
+      customCss: fieldCss,
+      focusCss,
+      invalidCss,
+      placeholderCss,
       callback: async (resp: CollectJsResponse) => {
         if (!resp?.token) {
           setIsProcessingRef.current(false);
