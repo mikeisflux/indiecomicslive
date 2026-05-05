@@ -1,5 +1,5 @@
 import { handlers } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 const { GET: authGet, POST: authPost } = handlers;
 
@@ -20,7 +20,7 @@ const { GET: authGet, POST: authPost } = handlers;
 //
 // Other auth routes (csrf, providers, signin, signout, callback for
 // non-email providers) are unaffected.
-function isVerificationCallback(req: Request): boolean {
+function isVerificationCallback(req: NextRequest): boolean {
   const url = new URL(req.url);
   // Match /api/auth/callback/<provider> with a token query param.
   // Today the only email provider is "sendgrid" but check by token
@@ -29,7 +29,7 @@ function isVerificationCallback(req: Request): boolean {
   return url.searchParams.has("token");
 }
 
-function looksLikeUserClick(req: Request): boolean {
+function looksLikeUserClick(req: NextRequest): boolean {
   const fetchUser = req.headers.get("sec-fetch-user");
   if (fetchUser === "?1") return true;
   // Browsers omit Sec-Fetch-* on file://, very old browsers, and a few
@@ -49,7 +49,7 @@ function looksLikeUserClick(req: Request): boolean {
   return true;
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   if (isVerificationCallback(req) && !looksLikeUserClick(req)) {
     // Don't consume the token — return a tiny "OK" so the scanner is
     // satisfied. The human's click will land on the real handler.
