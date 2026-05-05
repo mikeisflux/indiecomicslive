@@ -251,7 +251,10 @@ export async function PATCH(
     );
   }
 
-  const app = await prisma.sellerApplication.findUnique({ where: { id } });
+  const app = await prisma.sellerApplication.findUnique({
+    where: { id },
+    include: { user: { select: { id: true, email: true } } },
+  });
   if (!app) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -259,30 +262,109 @@ export async function PATCH(
   // Pull the email out — that field lives on User, not SellerApplication.
   const { userEmail, ...applicationFields } = parsed.data;
 
-  await prisma.$transaction(async (tx) => {
-    if (Object.keys(applicationFields).length > 0) {
+  // If the admin is changing the email to one that's different from the
+  // current owner's, treat that as "transfer this application to a
+  // different account" — find or create a User with the new email,
+  // reassign the application + per-user seller data to them, and leave
+  // the original user (often the admin themselves) untouched.
+  let transferReport: {
+    fromUserId: string;
+    toUserId: string;
+    createdNewUser: boolean;
+  } | null = null;
+  const normalizedEmail =
+    typeof userEmail === "string" ? userEmail.toLowerCase().trim() : null;
+  const shouldTransfer =
+    normalizedEmail !== null &&
+    normalizedEmail.length > 0 &&
+    normalizedEmail !== (app.user.email ?? "").toLowerCase();
+
+  if (shouldTransfer) {
+    // Refuse if the destination user already has their own seller
+    // application — overwriting it would lose data.
+    const existingSeller = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, sellerApplication: { select: { id: true } } },
+    });
+    if (existingSeller?.sellerApplication) {
+      return NextResponse.json(
+        {
+          error: "destination_already_has_application",
+          message:
+            "That email already has a seller application. Resolve that one first.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const targetUser =
+      existingSeller ??
+      (await prisma.user.create({
+        data: { email: normalizedEmail, role: "viewer" },
+        select: { id: true },
+      }));
+
+    transferReport = {
+      fromUserId: app.user.id,
+      toUserId: targetUser.id,
+      createdNewUser: !existingSeller,
+    };
+
+    await prisma.$transaction(async (tx) => {
+      // Move per-user seller data over. Each block is conditional on
+      // the source row existing, since not every relation is populated.
       await tx.sellerApplication.update({
         where: { id: app.id },
-        data: applicationFields,
+        data: { userId: targetUser.id, ...applicationFields },
       });
-    }
-    if (typeof userEmail === "string") {
-      await tx.user.update({
-        where: { id: app.userId },
-        data: { email: userEmail.toLowerCase().trim() },
+
+      const cb = await tx.sellerChargebackCard.findUnique({
+        where: { userId: app.user.id },
       });
-    }
-  });
+      if (cb) {
+        // Delete any orphan SellerChargebackCard already on the target
+        // (rare; defends against a half-completed earlier transfer).
+        await tx.sellerChargebackCard
+          .delete({ where: { userId: targetUser.id } })
+          .catch(() => null);
+        await tx.sellerChargebackCard.update({
+          where: { userId: app.user.id },
+          data: { userId: targetUser.id },
+        });
+      }
+
+      const bank = await tx.paymentCloudBankAccount.findUnique({
+        where: { userId: app.user.id },
+      });
+      if (bank) {
+        await tx.paymentCloudBankAccount
+          .delete({ where: { userId: targetUser.id } })
+          .catch(() => null);
+        await tx.paymentCloudBankAccount.update({
+          where: { userId: app.user.id },
+          data: { userId: targetUser.id },
+        });
+      }
+    });
+  } else if (Object.keys(applicationFields).length > 0) {
+    await prisma.sellerApplication.update({
+      where: { id: app.id },
+      data: applicationFields,
+    });
+  }
 
   await logAudit({
     actorId: me.id,
-    action: "seller_application.edit",
+    action: transferReport ? "seller_application.transfer" : "seller_application.edit",
     targetKind: "seller_application",
     targetId: app.id,
-    metadata: { fields: Object.keys(parsed.data) },
+    metadata: {
+      fields: Object.keys(parsed.data),
+      ...(transferReport ?? {}),
+    } as Record<string, unknown>,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, transfer: transferReport });
 }
 
 function escapeHtml(s: string): string {
