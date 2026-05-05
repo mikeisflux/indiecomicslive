@@ -30,20 +30,37 @@ PUBLIC_IPV4="157.180.39.56"
 log() { echo -e "\n\033[1;33m[finalize]\033[0m $*"; }
 
 # ---------------------------------------------------------------------------
-# 1. Validate .env.local — no TODO_ placeholders allowed
+# 1. Validate .env.local
+#    Critical vars must be filled. Non-critical (payments, etc.) may stay
+#    TODO_ — admin can fill them in later from /admin/settings + restart.
 # ---------------------------------------------------------------------------
 if ! [ -f "$ENV_FILE" ]; then
   echo "ERROR: $ENV_FILE missing. Run app-server-setup.sh first." >&2
   exit 1
 fi
-TODOS=$(grep -E '=TODO_' "$ENV_FILE" || true)
-if [ -n "$TODOS" ]; then
-  echo "ERROR: $ENV_FILE still has TODO placeholders:" >&2
-  echo "$TODOS" >&2
-  echo "Fill those in before running finalize." >&2
+
+REQUIRED=(DATABASE_URL AUTH_SECRET AUTH_URL AUTH_SENDGRID_KEY)
+MISSING=""
+for var in "${REQUIRED[@]}"; do
+  val=$(grep -E "^${var}=" "$ENV_FILE" | head -1 | cut -d= -f2-)
+  if [ -z "$val" ] || [[ "$val" == TODO_* ]]; then
+    MISSING+="  $var=$val"$'\n'
+  fi
+done
+if [ -n "$MISSING" ]; then
+  echo "ERROR: $ENV_FILE is missing required values:" >&2
+  echo -n "$MISSING" >&2
+  echo "Fill those in (the rest are optional and can be set later via /admin)." >&2
   exit 1
 fi
-log "$ENV_FILE has no TODO placeholders — good"
+
+OPTIONAL_TODOS=$(grep -E '=TODO_' "$ENV_FILE" || true)
+if [ -n "$OPTIONAL_TODOS" ]; then
+  log "non-critical TODO_ placeholders remain (boot will succeed, those features will be inert until set):"
+  echo "$OPTIONAL_TODOS" | sed 's/^/  /'
+else
+  log "$ENV_FILE has no TODO placeholders"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Validate DNS
