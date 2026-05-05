@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -62,8 +63,13 @@ export async function POST(req: Request) {
     select: { email: true, name: true },
   });
 
+  // Pre-generate the vault id so we don't depend on PaymentCloud
+  // echoing it back. NMI accepts arbitrary strings as customer_vault_id.
+  const vaultId = `icl_${randomUUID().replace(/-/g, "")}`;
+
   const vaultResp = await addCustomerToVault(config, {
     paymentToken: parsed.data.paymentToken,
+    customerVaultId: vaultId,
     firstName: parsed.data.billingFirstName,
     lastName: parsed.data.billingLastName,
     email: user?.email,
@@ -75,14 +81,12 @@ export async function POST(req: Request) {
     country: parsed.data.billingCountry,
   });
 
-  if (vaultResp.response !== "1" || !vaultResp.customer_vault_id) {
+  if (vaultResp.response !== "1") {
     return NextResponse.json(
       { error: vaultResp.responsetext || "card_declined" },
       { status: 400 },
     );
   }
-
-  const vaultId = vaultResp.customer_vault_id;
 
   // Auth-and-void to confirm the card is real and chargeable.
   const validation = await validateVaultCard(config, vaultId);
