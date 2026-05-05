@@ -102,6 +102,23 @@ export async function r2PresignedDownload(opts: {
   return getSignedUrl(r2, cmd, { expiresIn: opts.expiresIn ?? 60 * 10 });
 }
 
+// Fetch an object's bytes back into the server. Used by the inbox
+// "forward" flow to copy original attachments into the new outbound
+// email's SendGrid payload + R2 archive.
+export async function r2GetObject(opts: { key: string }): Promise<Buffer> {
+  if (!bucket) throw new Error("R2_BUCKET not set");
+  const out = await r2.send(
+    new GetObjectCommand({ Bucket: bucket, Key: opts.key }),
+  );
+  if (!out.Body) throw new Error("r2GetObject: empty body");
+  // Body is a Node.js Readable when this runs server-side under Node.
+  const chunks: Buffer[] = [];
+  for await (const chunk of out.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function r2DeleteObject(key: string): Promise<void> {
   if (!bucket) throw new Error("R2_BUCKET not set");
   await r2

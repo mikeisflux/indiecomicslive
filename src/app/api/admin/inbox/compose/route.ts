@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAdminUserOrNull, logAudit } from "@/lib/admin";
 import { sendEmailRich } from "@/lib/email-rich";
-import { r2Key, r2PutObject } from "@/lib/r2";
+import { r2Key, r2PutObject, r2GetObject } from "@/lib/r2";
+import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,22 @@ function splitAddresses(s: string | null): string[] {
     .map((x) => x.trim().toLowerCase())
     .filter((x) => /.+@.+\..+/.test(x));
 }
+
+function extractMessageId(headersField: unknown): string | null {
+  if (typeof headersField !== "string") return null;
+  const m = headersField.match(/^message-id:\s*(<[^>]+>)/im);
+  return m ? m[1].trim() : null;
+}
+
+function extractReferences(headersField: unknown): string | null {
+  if (typeof headersField !== "string") return null;
+  const m = headersField.match(/^references:\s*(.+)$/im);
+  return m ? m[1].trim() : null;
+}
+
+const HOST_DOMAIN = (process.env.AUTH_EMAIL_FROM ?? "indiecomicslive.com")
+  .split("@")
+  .pop() || "indiecomicslive.com";
 
 export async function POST(req: Request) {
   const me = await getAdminUserOrNull();
@@ -30,7 +47,10 @@ export async function POST(req: Request) {
   const bcc = splitAddresses(fd.get("bcc")?.toString() ?? "");
   const subject = (fd.get("subject")?.toString() ?? "").slice(0, 998).trim();
   const text = (fd.get("text")?.toString() ?? "").slice(0, 200_000);
+  const html = (fd.get("html")?.toString() ?? "").slice(0, 400_000) || undefined;
   const replyTo = fd.get("replyTo")?.toString() || undefined;
+  const replyToId = fd.get("replyToId")?.toString() || undefined;
+  const forwardFromId = fd.get("forwardFromId")?.toString() || undefined;
 
   if (to.length === 0) {
     return NextResponse.json(
@@ -38,41 +58,110 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!subject && !text) {
+  if (!subject && !text && !html) {
     return NextResponse.json(
       { error: "empty", message: "Subject or body required." },
       { status: 400 },
     );
   }
 
-  const attachmentFiles: File[] = [];
+  // User-attached files
+  const userFiles: { name: string; type: string; buf: Buffer }[] = [];
   for (const [k, v] of fd.entries()) {
     if (k === "attachments" && v instanceof File && v.size > 0) {
-      attachmentFiles.push(v);
+      userFiles.push({
+        name: v.name || "attachment",
+        type: v.type || "application/octet-stream",
+        buf: Buffer.from(await v.arrayBuffer()),
+      });
     }
   }
-  // 25 MB cap per attachment, 30 MB total — SendGrid's hard limits.
-  const totalBytes = attachmentFiles.reduce((s, f) => s + f.size, 0);
-  if (attachmentFiles.some((f) => f.size > 25 * 1024 * 1024) || totalBytes > 30 * 1024 * 1024) {
+
+  // Look up reply / forward source. We need it for:
+  //   - In-Reply-To / References headers (threading)
+  //   - Copying original attachments on forward
+  let sourceMessageId: string | null = null;
+  let sourceReferences: string | null = null;
+  const forwardedAttachments: { name: string; type: string; buf: Buffer }[] = [];
+
+  if (replyToId || forwardFromId) {
+    const id = replyToId || forwardFromId!;
+    const orig = await prisma.inboundEmail.findUnique({
+      where: { id },
+      include: { attachments: true },
+    });
+    if (orig) {
+      const raw = (orig.raw ?? null) as Record<string, unknown> | null;
+      if (raw) {
+        sourceMessageId = extractMessageId(raw.headers) ?? null;
+        sourceReferences = extractReferences(raw.headers) ?? null;
+        // outbound rows we previously created store our generated id here
+        if (!sourceMessageId && typeof raw.message_id === "string") {
+          sourceMessageId = raw.message_id;
+        }
+      }
+
+      if (forwardFromId && orig.attachments.length > 0) {
+        for (const a of orig.attachments) {
+          try {
+            const buf = await r2GetObject({ key: a.r2Key });
+            forwardedAttachments.push({
+              name: a.filename,
+              type: a.contentType ?? "application/octet-stream",
+              buf,
+            });
+          } catch (e) {
+            console.warn("[inbox-compose] forward attachment fetch failed", {
+              filename: a.filename,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const allAttachments = [...userFiles, ...forwardedAttachments];
+
+  // SendGrid limits: 25 MB per attachment, 30 MB total.
+  const totalBytes = allAttachments.reduce((s, a) => s + a.buf.byteLength, 0);
+  if (
+    allAttachments.some((a) => a.buf.byteLength > 25 * 1024 * 1024) ||
+    totalBytes > 30 * 1024 * 1024
+  ) {
     return NextResponse.json(
       { error: "attachment_too_large", message: "25 MB per file, 30 MB total." },
       { status: 400 },
     );
   }
 
-  const sgAttachments: { filename: string; content: string; type?: string }[] = [];
-  for (const file of attachmentFiles) {
-    const buf = Buffer.from(await file.arrayBuffer());
-    sgAttachments.push({
-      filename: file.name || "attachment",
-      content: buf.toString("base64"),
-      type: file.type || "application/octet-stream",
-    });
+  const sgAttachments = allAttachments.map((a) => ({
+    filename: a.name,
+    content: a.buf.toString("base64"),
+    type: a.type,
+  }));
+
+  // Generate a Message-ID for our outbound. Stored on the row's raw blob
+  // and emitted as a custom header so future replies can be threaded.
+  const ourMessageId = `<${randomUUID()}@${HOST_DOMAIN}>`;
+  const headers: Record<string, string> = { "Message-ID": ourMessageId };
+  if (sourceMessageId) {
+    headers["In-Reply-To"] = sourceMessageId;
+    headers["References"] = sourceReferences
+      ? `${sourceReferences} ${sourceMessageId}`
+      : sourceMessageId;
   }
 
   const send = await sendEmailRich({
-    to, cc, bcc, subject, text, replyTo,
+    to,
+    cc,
+    bcc,
+    subject,
+    text,
+    html,
+    replyTo,
     attachments: sgAttachments,
+    headers,
   });
 
   if (!send.ok) {
@@ -82,8 +171,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Persist a 'sent' row + upload attachments to R2 so admins see it
-  // alongside inbound mail and can re-download what they sent.
   const created = await prisma.inboundEmail.create({
     data: {
       direction: "outbound",
@@ -94,31 +181,34 @@ export async function POST(req: Request) {
       bccEmails: bcc,
       subject,
       text,
+      html: html ?? null,
       readAt: new Date(),
+      raw: {
+        message_id: ourMessageId,
+        in_reply_to: sourceMessageId,
+        references: headers.References ?? null,
+        reply_to_id: replyToId ?? null,
+        forward_from_id: forwardFromId ?? null,
+      },
     },
   });
 
-  for (const file of attachmentFiles) {
+  for (const a of allAttachments) {
     try {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const key = r2Key([
-        "emails",
-        created.id,
-        `${Date.now()}-${file.name || "attachment"}`,
-      ]);
-      await r2PutObject({ key, body: buf, contentType: file.type });
+      const key = r2Key(["emails", created.id, `${Date.now()}-${a.name}`]);
+      await r2PutObject({ key, body: a.buf, contentType: a.type });
       await prisma.inboundEmailAttachment.create({
         data: {
           emailId: created.id,
-          filename: file.name || "attachment",
-          contentType: file.type || null,
-          sizeBytes: buf.byteLength,
+          filename: a.name,
+          contentType: a.type,
+          sizeBytes: a.buf.byteLength,
           r2Key: key,
         },
       });
     } catch (e) {
       console.warn("[inbox-compose] attachment archive failed", {
-        filename: file.name,
+        filename: a.name,
         error: e instanceof Error ? e.message : String(e),
       });
     }
@@ -126,10 +216,22 @@ export async function POST(req: Request) {
 
   await logAudit({
     actorId: me.id,
-    action: "inbox.compose",
+    action: replyToId
+      ? "inbox.reply"
+      : forwardFromId
+        ? "inbox.forward"
+        : "inbox.compose",
     targetKind: "inbound_email",
     targetId: created.id,
-    metadata: { to, cc, bcc, subject, attachments: attachmentFiles.length },
+    metadata: {
+      to,
+      cc,
+      bcc,
+      subject,
+      attachments: allAttachments.length,
+      replyToId,
+      forwardFromId,
+    },
   });
 
   return NextResponse.json({ ok: true, id: created.id });

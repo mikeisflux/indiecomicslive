@@ -19,6 +19,9 @@ interface SendArgs {
   html?: string;
   attachments?: AttachmentInput[];
   replyTo?: string;
+  // Custom headers passed through to SendGrid (e.g. Message-ID,
+  // In-Reply-To, References for thread continuity).
+  headers?: Record<string, string>;
 }
 
 export async function sendEmailRich(
@@ -55,6 +58,9 @@ export async function sendEmailRich(
     content,
   };
   if (args.replyTo) body.reply_to = { email: args.replyTo };
+  if (args.headers && Object.keys(args.headers).length > 0) {
+    body.headers = args.headers;
+  }
   if (args.attachments?.length) {
     body.attachments = args.attachments.map((a) => ({
       filename: a.filename,

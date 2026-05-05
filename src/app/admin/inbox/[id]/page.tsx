@@ -54,6 +54,27 @@ export default async function InboxDetail({
         ← Inbox
       </Link>
 
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Link
+          href={`/admin/inbox/compose?reply=${email.id}`}
+          className="rounded-full bg-accent px-4 py-1.5 text-xs font-bold text-ink"
+        >
+          ↩ Reply
+        </Link>
+        <Link
+          href={`/admin/inbox/compose?replyAll=${email.id}`}
+          className="rounded-full border border-white/15 px-4 py-1.5 text-xs font-semibold"
+        >
+          ↩↩ Reply All
+        </Link>
+        <Link
+          href={`/admin/inbox/compose?forward=${email.id}`}
+          className="rounded-full border border-white/15 px-4 py-1.5 text-xs font-semibold"
+        >
+          ➡ Forward
+        </Link>
+      </div>
+
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-xl font-bold">{email.subject || "(no subject)"}</h1>
