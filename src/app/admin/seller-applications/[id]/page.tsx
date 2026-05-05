@@ -421,7 +421,7 @@ function PriorPlatforms({ platforms }: { platforms: unknown }) {
                   </>
                 ) : null}
               </p>
-              {p.notes && <p className="text-paper/60">{String(p.notes)}</p>}
+              {p.notes ? <p className="text-paper/60">{String(p.notes)}</p> : null}
             </li>
           ))}
         </ul>
