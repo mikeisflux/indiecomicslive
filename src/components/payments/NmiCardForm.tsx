@@ -15,6 +15,18 @@ declare global {
 
 interface CollectJsResponse {
   token: string;
+  card?: {
+    // CollectJS returns the card metadata alongside the tokenized
+    // PAN. We forward this to /api/payment-methods so we have brand
+    // / last4 / exp without an extra round-trip to NMI's validate-
+    // vault endpoint (which requires CVV that PCI rules forbid us
+    // from re-sending).
+    number?: string; // masked PAN, e.g. "411111******1111"
+    bin?: string;
+    exp?: string; // "MMYY"
+    type?: string; // "visa", "mastercard", "amex", ...
+    name?: string;
+  };
 }
 
 type Props = {
@@ -135,36 +147,34 @@ export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
     // Inline styles applied INSIDE each CollectJS iframe. The iframes
     // are cross-origin so we can't reach in with our own CSS; CollectJS
     // copies these onto the input element it renders.
-    // Use a real dark colour, not transparent, because browser autofill
-    // overrides `background-color: transparent` with its yellow tint
-    // and our text becomes unreadable on top. The webkit autofill kill
-    // pair (text-fill-color + huge box-shadow inset) further blocks
-    // Chrome/Safari's autofill recolouring.
+    // CollectJS iframes ignore some of our CSS (cross-origin security).
+    // To stay readable in every state — default, autofilled, focused —
+    // pick a colour pairing that's robust even if `background-color` is
+    // dropped: dark text on a light bg works whether the iframe ends up
+    // white (CollectJS default), yellow (browser autofill), or our own.
     const fieldCss = {
-      color: "#f5f1e6", // matches our `text-paper`
-      "-webkit-text-fill-color": "#f5f1e6",
-      "background-color": "#0a0a0a",
-      "-webkit-box-shadow": "0 0 0 1000px #0a0a0a inset",
+      color: "#111827",
+      "-webkit-text-fill-color": "#111827",
+      "background-color": "#ffffff",
       "font-size": "14px",
       "font-family":
         "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-      padding: "0",
-      transition: "background-color 9999s ease-in-out 0s",
+      padding: "0 4px",
     };
     const focusCss = {
       ...fieldCss,
-      color: "#ffffff",
-      "-webkit-text-fill-color": "#ffffff",
+      color: "#000000",
+      "-webkit-text-fill-color": "#000000",
     };
     const invalidCss = {
       ...fieldCss,
-      color: "#f87171",
-      "-webkit-text-fill-color": "#f87171",
+      color: "#b91c1c",
+      "-webkit-text-fill-color": "#b91c1c",
     };
     const placeholderCss = {
       ...fieldCss,
-      color: "rgba(245,241,230,0.7)",
-      "-webkit-text-fill-color": "rgba(245,241,230,0.7)",
+      color: "#6b7280",
+      "-webkit-text-fill-color": "#6b7280",
     };
 
     window.CollectJS.configure({
@@ -204,6 +214,9 @@ export function NmiCardForm({ publicKey, onSuccess, onError }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               paymentToken: resp.token,
+              cardBrand: resp.card?.type ?? null,
+              cardNumberMasked: resp.card?.number ?? null,
+              cardExp: resp.card?.exp ?? null,
               billingFirstName: b.firstName,
               billingLastName: b.lastName,
               billingLine1: b.line1,

@@ -3,15 +3,16 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  addCustomerToVault,
-  deleteVaultCustomer,
-  loadNmiConfig,
-  validateVaultCard,
-} from "@/lib/nmi";
+import { addCustomerToVault, loadNmiConfig } from "@/lib/nmi";
 
 const Body = z.object({
   paymentToken: z.string().min(1).max(200),
+  // Card metadata returned by CollectJS in its tokenize callback.
+  // We trust these for display only — the canonical source of truth
+  // for actual charging is the customer_vault entry on NMI's side.
+  cardBrand: z.string().max(50).nullable().optional(),
+  cardNumberMasked: z.string().max(40).nullable().optional(),
+  cardExp: z.string().max(8).nullable().optional(),
   billingFirstName: z.string().trim().max(100).optional(),
   billingLastName: z.string().trim().max(100).optional(),
   billingLine1: z.string().trim().max(200).optional(),
@@ -109,27 +110,23 @@ export async function POST(req: Request) {
     );
   }
 
-  // Auth-and-void to confirm the card is real and chargeable.
-  console.log("[payment-methods] validate_vault ->", { vaultId });
-  const validation = await validateVaultCard(config, vaultId);
-  console.log("[payment-methods] validate_vault <-", {
-    response: validation.response,
-    responsetext: validation.responsetext,
-    raw: validation.raw,
-  });
-  if (validation.response !== "1") {
-    await deleteVaultCustomer(config, vaultId).catch(() => null);
-    return NextResponse.json(
-      { error: validation.responsetext || "card_validation_failed" },
-      { status: 400 },
-    );
-  }
+  // We deliberately skip a separate validate-vault auth-and-void step.
+  // PCI rules forbid the gateway from storing CVV in the customer_vault,
+  // and a vault-only auth without CVV gets rejected as "A card security
+  // code has never been passed for this account". The add_customer call
+  // already validates the payment_token (which carries CVV) at the
+  // gateway, so a successful response is sufficient proof the card is
+  // chargeable. Real declines surface on the actual sale_by_vault later.
 
-  const cardBrand = validation.raw.cc_type ?? null;
-  const cardLast4 = validation.raw.cc_number?.slice(-4) ?? null;
-  const expRaw = validation.raw.cc_exp;
-  const cardExpMonth = expRaw ? Number(expRaw.slice(0, 2)) : null;
-  const cardExpYear = expRaw ? 2000 + Number(expRaw.slice(2, 4)) : null;
+  // Card display metadata comes from CollectJS's tokenize callback —
+  // we forward it from the browser instead of trying to read it back
+  // from the gateway.
+  const cardBrand = parsed.data.cardBrand?.toLowerCase() ?? null;
+  const masked = parsed.data.cardNumberMasked ?? "";
+  const cardLast4 = masked ? masked.replace(/\D/g, "").slice(-4) : null;
+  const expRaw = parsed.data.cardExp ?? "";
+  const cardExpMonth = expRaw.length >= 2 ? Number(expRaw.slice(0, 2)) : null;
+  const cardExpYear = expRaw.length >= 4 ? 2000 + Number(expRaw.slice(2, 4)) : null;
 
   const row = await prisma.$transaction(async (tx) => {
     await tx.userPaymentMethod.updateMany({
