@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
 const NmiCardForm = dynamic(
@@ -41,6 +42,7 @@ export default function ApplyForm({
   chargebackCard,
   nmiPublicKey,
 }: Props) {
+  const router = useRouter();
   // Read previously-saved form state from localStorage at first mount.
   // Done in useState lazy initializers so render 1 already shows the
   // restored values — no race against an effect that would otherwise
@@ -167,6 +169,77 @@ export default function ApplyForm({
       /* quota exceeded etc — fine to skip */
     }
   }, [identity, business, step, agreeSeller, agreeContent, agreeNsfw]);
+
+  // Big celebratory success screen — shown right after a successful
+  // submit OR when the seller comes back to the page later and the
+  // server already has their submitted application. Auto-redirects
+  // to the home page after 10s; user can leave sooner via the Home
+  // button.
+  const [secondsLeft, setSecondsLeft] = useState(10);
+  useEffect(() => {
+    if (!submitted) return;
+    setSecondsLeft(10);
+    const interval = setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    const redirectTimer = setTimeout(() => router.push("/"), 10000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(redirectTimer);
+    };
+  }, [submitted, router]);
+
+  if (submitted) {
+    return (
+      <div className="mt-12 flex flex-col items-center justify-center text-center">
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-accent/20 ring-4 ring-accent/40">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-12 w-12 text-accent"
+            aria-hidden
+          >
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">
+          Application submitted
+        </h2>
+        <p className="mt-3 max-w-md text-sm text-paper/70 md:text-base">
+          Thanks for applying to sell on Indie Comics Live. We&rsquo;ll email
+          you within <strong className="text-paper">2&ndash;3 business days</strong>.
+          You can browse the marketplace in the meantime.
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-ink shadow-lg shadow-accent/30 transition hover:bg-accent/90"
+          >
+            Go to homepage
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/seller")}
+            className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-paper hover:bg-white/5"
+          >
+            View my seller profile
+          </button>
+        </div>
+        <p
+          className="mt-6 text-xs text-paper/40"
+          aria-live="polite"
+        >
+          Redirecting to the homepage in {secondsLeft}s&hellip;
+        </p>
+      </div>
+    );
+  }
 
   const inputClass =
     "w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm";
