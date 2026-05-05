@@ -85,7 +85,7 @@ export async function resetPasswordAction(
   await signIn("credentials", {
     email: user.email,
     password,
-    redirectTo: "/",
+    redirectTo: "/post-signin",
   });
 
   return { ok: true };

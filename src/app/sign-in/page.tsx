@@ -13,7 +13,10 @@ export const metadata = {
 };
 
 function safeNext(c?: string): string {
-  return typeof c === "string" && c.startsWith("/") ? c : "/";
+  // Default routes through /post-signin which sends sellers to the
+  // seller dashboard, admins to admin, and buyers to orders. An
+  // explicit callbackUrl (deep-link bounce) is honored as-is.
+  return typeof c === "string" && c.startsWith("/") ? c : "/post-signin";
 }
 
 async function clientIp(): Promise<string | null> {

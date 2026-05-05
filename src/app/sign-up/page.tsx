@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 function safeNext(c?: string): string {
-  return typeof c === "string" && c.startsWith("/") ? c : "/";
+  return typeof c === "string" && c.startsWith("/") ? c : "/post-signin";
 }
 
 export default async function SignUp({

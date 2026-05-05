@@ -10,9 +10,11 @@ export default async function SiteHeader() {
   const session = await auth();
   const me = session?.user ?? null;
 
-  // Only show the "Seller" link to actually-approved sellers (or to
-  // admins, who can fly anywhere). Unapproved users would otherwise
-  // click "Seller" and get bounced into the application flow.
+  // We surface "Seller" for every signed-in user — clicking it takes
+  // them to /seller which renders the dashboard for approved sellers
+  // or routes onboarding for everyone else. We still know about
+  // approval status here in case we want to vary other UI (e.g. hide
+  // marketing "Sell" link for approved sellers).
   let isApprovedSeller = false;
   if (me?.id) {
     if (me.role === "admin" || me.role === "super_admin") {
@@ -39,9 +41,8 @@ export default async function SiteHeader() {
         Indie Comics <span className="text-accent">Live</span>
       </Link>
       <nav className="flex items-center gap-2 text-sm">
-        {/* Marketing "Sell" link: only for visitors and signed-in
-            non-sellers. Approved sellers go straight to their
-            dashboard via the "Seller" pill below. */}
+        {/* Visitors + non-sellers see the marketing "Sell" link.
+            Approved sellers don't need it — they have "Seller". */}
         {!isApprovedSeller && (
           <Link
             href="/sell"
@@ -63,11 +64,18 @@ export default async function SiteHeader() {
             {isApprovedSeller && (
               <Link
                 href="/seller"
-                className="hidden rounded-full border border-white/10 px-3 py-1.5 sm:inline-block"
+                className="rounded-full border border-white/10 px-3 py-1.5"
               >
                 Seller
               </Link>
             )}
+            {/* Every signed-in user is also a buyer — orders dashboard. */}
+            <Link
+              href="/orders"
+              className="hidden rounded-full border border-white/10 px-3 py-1.5 sm:inline-block"
+            >
+              Buy
+            </Link>
             <span className="hidden truncate text-paper/60 sm:inline">
               {me.email}
             </span>
