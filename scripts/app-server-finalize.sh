@@ -64,20 +64,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Validate DNS
+# 2. Validate DNS — best-effort, doesn't abort on resolver failure
 # ---------------------------------------------------------------------------
 log "checking DNS for $APP_HOST"
-RESOLVED=$(dig +short -t A "$APP_HOST" @1.1.1.1 | tail -1)
-if [ "$RESOLVED" != "$PUBLIC_IPV4" ]; then
-  cat <<EOF >&2
+# Try Hetzner's resolver first (1.1.1.1 is blocked outbound on Hetzner Cloud
+# in some regions). Fall back to the system resolver. `|| true` so that a
+# timeout / nonzero exit doesn't kill the script with set -e.
+RESOLVED=""
+for try in \
+  "dig +short +time=3 +tries=1 -t A $APP_HOST @185.12.64.1" \
+  "dig +short +time=3 +tries=1 -t A $APP_HOST @8.8.8.8" \
+  "dig +short -t A $APP_HOST" \
+  "getent ahostsv4 $APP_HOST"; do
+  out=$($try 2>/dev/null | awk '/^[0-9.]+/ {print $1; exit}' || true)
+  if [ -n "$out" ]; then
+    RESOLVED="$out"
+    break
+  fi
+done
 
-ERROR: $APP_HOST resolves to '$RESOLVED', expected '$PUBLIC_IPV4'.
-Set the DNS A record and wait for propagation, then re-run.
-
-EOF
-  exit 1
+if [ -z "$RESOLVED" ]; then
+  log "WARNING: could not resolve $APP_HOST (resolver issue?). Continuing anyway."
+elif [ "$RESOLVED" != "$PUBLIC_IPV4" ]; then
+  log "WARNING: $APP_HOST resolves to '$RESOLVED', expected '$PUBLIC_IPV4'."
+  log "         certbot will fail until DNS is fixed; everything else will still install."
+else
+  log "DNS OK ($APP_HOST -> $RESOLVED)"
 fi
-log "DNS OK"
 
 # ---------------------------------------------------------------------------
 # 3. Auto-fill /etc/default/botblock-sync from DATABASE_URL
