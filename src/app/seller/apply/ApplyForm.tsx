@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 const NmiCardForm = dynamic(
@@ -83,6 +83,57 @@ export default function ApplyForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(existing?.status === "submitted");
+
+  // Persist Identity / Business / step in localStorage so a refresh,
+  // network error, or stripe-of-luck doesn't blow away everything the
+  // seller already typed. We hydrate on mount and write on every change.
+  const STORAGE_KEY = "icl_apply_state_v1";
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<{
+          identity: typeof identity;
+          business: typeof business;
+          step: typeof step;
+          agreeSeller: boolean;
+          agreeContent: boolean;
+          agreeNsfw: boolean;
+        }>;
+        if (saved.identity) setIdentity((p) => ({ ...p, ...saved.identity }));
+        if (saved.business) setBusiness((p) => ({ ...p, ...saved.business }));
+        if (
+          saved.step &&
+          ["identity", "business", "bank", "chargeback", "agree"].includes(
+            saved.step,
+          )
+        ) {
+          // Don't override the review screen if we're already showing it.
+          if (!existing?.status) setStep(saved.step);
+        }
+        if (typeof saved.agreeSeller === "boolean") setAgreeSeller(saved.agreeSeller);
+        if (typeof saved.agreeContent === "boolean") setAgreeContent(saved.agreeContent);
+        if (typeof saved.agreeNsfw === "boolean") setAgreeNsfw(saved.agreeNsfw);
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+    hydrated.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!hydrated.current || typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ identity, business, step, agreeSeller, agreeContent, agreeNsfw }),
+      );
+    } catch {
+      /* quota exceeded etc — fine to skip */
+    }
+  }, [identity, business, step, agreeSeller, agreeContent, agreeNsfw]);
 
   const inputClass =
     "w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm";

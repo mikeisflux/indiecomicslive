@@ -67,6 +67,20 @@ export async function POST(req: Request) {
   // echoing it back. NMI accepts arbitrary strings as customer_vault_id.
   const vaultId = `icl_${randomUUID().replace(/-/g, "")}`;
 
+  console.log("[payment-methods] add_customer ->", {
+    vaultId,
+    email: user?.email,
+    billing: {
+      firstName: parsed.data.billingFirstName,
+      lastName: parsed.data.billingLastName,
+      line1: parsed.data.billingLine1,
+      city: parsed.data.billingCity,
+      state: parsed.data.billingState,
+      zip: parsed.data.billingZip,
+      country: parsed.data.billingCountry,
+    },
+  });
+
   const vaultResp = await addCustomerToVault(config, {
     paymentToken: parsed.data.paymentToken,
     customerVaultId: vaultId,
@@ -81,6 +95,13 @@ export async function POST(req: Request) {
     country: parsed.data.billingCountry,
   });
 
+  console.log("[payment-methods] add_customer <-", {
+    response: vaultResp.response,
+    responsetext: vaultResp.responsetext,
+    customer_vault_id: vaultResp.customer_vault_id,
+    raw: vaultResp.raw,
+  });
+
   if (vaultResp.response !== "1") {
     return NextResponse.json(
       { error: vaultResp.responsetext || "card_declined" },
@@ -89,7 +110,13 @@ export async function POST(req: Request) {
   }
 
   // Auth-and-void to confirm the card is real and chargeable.
+  console.log("[payment-methods] validate_vault ->", { vaultId });
   const validation = await validateVaultCard(config, vaultId);
+  console.log("[payment-methods] validate_vault <-", {
+    response: validation.response,
+    responsetext: validation.responsetext,
+    raw: validation.raw,
+  });
   if (validation.response !== "1") {
     await deleteVaultCustomer(config, vaultId).catch(() => null);
     return NextResponse.json(
