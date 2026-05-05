@@ -19,8 +19,8 @@ export default async function SellerOrderDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const me = await requireOnboardedUser();
   const { id } = await params;
+  const me = await requireOnboardedUser(`/seller/orders/${id}`);
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
