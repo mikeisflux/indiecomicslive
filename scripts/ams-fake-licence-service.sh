@@ -63,17 +63,14 @@ JAVAP="$(command -v javap)"
 # ---------------------------------------------------------------------------
 # 3. Find which jar contains CommunityLicenceService — we extend that class
 # ---------------------------------------------------------------------------
-log "locating CommunityLicenceService in deployed jars"
+log "locating CommunityLicenceService anywhere under $AMS_HOME"
 COMMUNITY_JAR=""
-shopt -s nullglob
-for jar in "$LIB_DIR"/*.jar "$AMS_HOME"/*.jar; do
-  [ -f "$jar" ] || continue
+while IFS= read -r jar; do
   if unzip -l "$jar" 2>/dev/null | grep -q 'io/antmedia/licence/CommunityLicenceService\.class'; then
     COMMUNITY_JAR="$jar"
     break
   fi
-done
-shopt -u nullglob
+done < <(find "$AMS_HOME" -type f -name '*.jar' 2>/dev/null)
 if [ -z "$COMMUNITY_JAR" ]; then
   fail "CommunityLicenceService not found in any jar — bailing without changes"
   exit 1
@@ -149,7 +146,10 @@ JAVA
 log "javac --release 11"
 mkdir -p "$WORK/classes"
 rm -f "$WORK/classes/io/antmedia/licence/FakeLicenceService.class"
-if ! "$JAVAC" --release 11 -cp "$LIB_DIR/*" -d "$WORK/classes" \
+# Build a classpath of every jar under AMS_HOME — Community + Licence may live
+# in lib, plugins, or a webapp's WEB-INF/lib.
+CP="$(find "$AMS_HOME" -type f -name '*.jar' 2>/dev/null | tr '\n' ':')"
+if ! "$JAVAC" --release 11 -cp "$CP" -d "$WORK/classes" \
      "$WORK/src/io/antmedia/licence/FakeLicenceService.java"; then
   fail "compile failed — leaving bean as CommunityLicenceService so AMS stays bootable"
   revert_bean_to_community
@@ -166,6 +166,15 @@ rm -f "$JAR_OUT"
 chmod 644 "$JAR_OUT"
 ls -la "$JAR_OUT"
 "$JAR" tf "$JAR_OUT"
+
+# Also drop a copy alongside whichever jar contains Community — guarantees we
+# end up on the same classloader regardless of AMS's classpath layering.
+COMMUNITY_DIR="$(dirname "$COMMUNITY_JAR")"
+if [ "$COMMUNITY_DIR" != "$LIB_DIR" ]; then
+  cp -f "$JAR_OUT" "$COMMUNITY_DIR/zz-fake-licence.jar"
+  chmod 644 "$COMMUNITY_DIR/zz-fake-licence.jar"
+  echo "  also placed in: $COMMUNITY_DIR/zz-fake-licence.jar"
+fi
 
 # ---------------------------------------------------------------------------
 # 7. Patch red5.xml to point bean at FakeLicenceService
