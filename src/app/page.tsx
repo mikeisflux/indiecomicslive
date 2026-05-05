@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import Footer from "@/components/Footer";
+import SiteHeader from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -52,25 +53,7 @@ export default async function Home() {
 
   return (
     <main>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-6">
-        <Link href="/" className="text-lg font-bold tracking-tight">
-          Indie Comics <span className="text-accent">Live</span>
-        </Link>
-        <nav className="flex items-center gap-2 text-sm">
-          <Link
-            href="/sell"
-            className="hidden rounded-full border border-white/10 px-3 py-1.5 sm:inline-block"
-          >
-            Sell
-          </Link>
-          <Link
-            href="/sign-in"
-            className="rounded-full border border-white/10 px-3 py-1.5"
-          >
-            Sign in
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="mx-auto max-w-6xl px-4 pt-10 pb-12 sm:pt-16">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
