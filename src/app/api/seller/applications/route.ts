@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma";
+import { Prisma, SellerApplicationStatus } from "@/generated/prisma";
 
 // Current platform agreement version. Bump this when ToS / Seller
 // Agreement / NSFW Policy materially change so we re-prompt.
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
     agreedToNsfwPolicyAt: parsed.data.agreedToNsfwPolicy ? now : null,
     agreementVersion: AGREEMENT_VERSION,
 
-    status: dq ? "rejected" : ("submitted" as const),
+    status: (dq ? "rejected" : "submitted") as SellerApplicationStatus,
     submittedAt: now,
     rejectionReason: dq,
     reviewedAt: dq ? now : null,
