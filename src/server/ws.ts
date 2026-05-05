@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./load-env";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
