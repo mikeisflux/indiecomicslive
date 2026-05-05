@@ -13,6 +13,33 @@ import { verifyAdminPassword } from "@/lib/admin-password";
 //      get into the admin panel.
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  // We're always behind nginx + (optionally) Cloudflare in production.
+  // Without trustHost, Auth.js refuses the magic-link callback when it
+  // can't trust X-Forwarded-Host, which manifests as "I clicked the
+  // link and the site opened but I'm not signed in." Always trust here.
+  trustHost: true,
+  secret: process.env.AUTH_SECRET,
+  debug: process.env.AUTH_DEBUG === "1",
+  logger: {
+    error(error) {
+      console.error("[auth] error", { name: error.name, message: error.message });
+    },
+    warn(code) {
+      console.warn("[auth] warn", code);
+    },
+  },
+  events: {
+    signIn(message) {
+      console.log("[auth] signIn", {
+        email: message.user?.email,
+        isNewUser: message.isNewUser,
+        provider: message.account?.provider,
+      });
+    },
+    createUser(message) {
+      console.log("[auth] createUser", { email: message.user.email });
+    },
+  },
   providers: [
     SendGrid({
       apiKey: process.env.AUTH_SENDGRID_KEY,
