@@ -13,9 +13,19 @@ export async function POST() {
   const me = await getAdminUserOrNull();
   if (!me) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  console.log("[dc-verify] starting Divinity Payments credential check", {
+    adminId: me.id,
+  });
+
   const r = await callDivinityCoinAPI("create-setup-intent", {
     platformUserId: me.id,
     purpose: "credential_verify",
+  });
+
+  console.log("[dc-verify] result", {
+    ok: r.ok,
+    status: r.ok ? 200 : r.status,
+    error: r.ok ? null : r.error,
   });
 
   if (r.ok) {
