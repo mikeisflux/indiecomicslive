@@ -82,6 +82,32 @@ We have two processors in the codebase. The branding distinction is critical:
 
 **Never expose `DivinityCoin` / `divinitycoin` to users.** The public brand is **Divinity Payments**.
 
+### Important: DC API surface (confirmed 2026-05-05)
+
+DC's `/internal` partner API only supports these actions:
+
+| Method | Action | Use |
+|---|---|---|
+| GET | `health` | Connectivity / auth probe |
+| GET | `settlements`, `settlement`, `captures` | Read settlement history |
+| POST | `validate` | Redeem a gift-card code |
+| POST | `balance` | Get user's credit balance |
+| POST | `hold` / `release` / `capture` / `record_capture` | Credit-balance ops |
+| POST | `create-payment-intent` | One-shot Stripe PaymentIntent for immediate charge |
+| POST | `refund` | Refund a payment |
+| POST | `verify-payment` | Server-side confirm a payment |
+
+**There is no `create-setup-intent` action.** DC does not support saving a card off-session for later auto-charge. Each payment requires a fresh PaymentIntent that the buyer authorizes at charge time.
+
+**Dead-code-against-DC** (any of these calls will return `{ error: 'Invalid action' }`):
+- `src/app/api/payment-methods/dc/intent/route.ts` — "save card" SetupIntent flow
+- `src/app/api/seller/chargeback-card/dc/intent/route.ts` — chargeback recovery card
+- `src/lib/payouts.ts` — `create_payout` action (DC's API doesn't list it; payouts may be settled differently — TBD with DC)
+
+For an **auction platform with merchant-initiated charges**, DC's current API doesn't fit: bidders can't save a card and have us charge them automatically when they win. Two paths forward:
+1. Keep NMI/PaymentCloud as the auction-charge processor (it supports stored vault + MIT) and use DC only for one-shot purchases / credit-balance settlement.
+2. Switch to a "credit-balance" auction model: bidders pre-load DC credits, wins settle via `hold` → `capture` against their balance.
+
 ### Legacy: PaymentCloud / NMI
 
 - PaymentCloud (NMI) was the prior processor. The integration code is still in `src/lib/nmi.ts`, `src/components/payments/NmiCardForm.tsx`, etc.

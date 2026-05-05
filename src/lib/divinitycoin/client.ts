@@ -10,9 +10,19 @@ import { getDivinityCoinConfig } from "./config";
 // Logs every call with the action name, status, and (on error) the
 // full DC response body so we can debug "Invalid action" / 4xx errors
 // from pm2 logs without guessing.
+//
+// Valid POST actions (per DC partner docs):
+//   validate, balance, hold, release, capture, record_capture,
+//   create-payment-intent, refund, verify-payment
+// Valid GET actions: health, settlements, settlement, captures
+//
+// DC does NOT have a setup-intent or "save card off-session" action.
+// Anything in this codebase that calls create-setup-intent is dead
+// code against DC — it'll always come back with "Invalid action".
 export async function callDivinityCoinAPI(
   action: string,
   payload: Record<string, unknown>,
+  method: "GET" | "POST" = "POST",
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string; status: number }> {
   const cfg = await getDivinityCoinConfig();
   if (!cfg) {
@@ -21,18 +31,19 @@ export async function callDivinityCoinAPI(
   }
 
   const url = `${cfg.baseUrl}?action=${action}`;
-  console.log("[dc] →", { action, url, partnerId: cfg.partnerId });
+  console.log("[dc] →", { method, action, url, partnerId: cfg.partnerId });
 
   try {
-    const r = await fetch(url, {
-      method: "POST",
+    const init: RequestInit = {
+      method,
       headers: {
         authorization: `Bearer ${cfg.apiKey}`,
         "x-partner-id": cfg.partnerId,
-        "content-type": "application/json",
+        ...(method === "POST" ? { "content-type": "application/json" } : {}),
       },
-      body: JSON.stringify(payload),
-    });
+      ...(method === "POST" ? { body: JSON.stringify(payload) } : {}),
+    };
+    const r = await fetch(url, init);
     const text = await r.text();
     let data: Record<string, unknown> = {};
     try {

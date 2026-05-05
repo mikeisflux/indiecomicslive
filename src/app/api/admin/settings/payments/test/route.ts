@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { getAdminUserOrNull } from "@/lib/admin";
 import { callDivinityCoinAPI } from "@/lib/divinitycoin";
 
-// POST — verify the configured API key + partner ID by calling a known
-// real DC action with a trivial payload. We use create-setup-intent
-// with a 'verify' purpose flag — DC either replies 200 with a setup
-// intent (creds good, side effect: a stranded SetupIntent on their
-// side that auto-expires after 24h), or a 401/403 (bad creds).
-// 'Invalid action' would mean the route name doesn't exist; anything
-// else with a body is fine since the round-trip proves auth works.
+// POST — verify the configured Divinity Payments API key + partner ID
+// by calling DC's `health` GET action. health is a no-side-effect
+// connectivity probe: it returns 200 if our auth is good, 401/403 if
+// the partner credentials are wrong, anything else means DC is up but
+// returned an unexpected shape.
+//
+// We picked health (GET) instead of create-setup-intent (which doesn't
+// exist on DC) because:
+//   - it has no side effects (won't litter DC's DB with stranded objects)
+//   - it doesn't need any business-state arguments
+//   - it's specifically intended for partner connectivity checks
 export async function POST() {
   const me = await getAdminUserOrNull();
   if (!me) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -17,10 +21,7 @@ export async function POST() {
     adminId: me.id,
   });
 
-  const r = await callDivinityCoinAPI("create-setup-intent", {
-    platformUserId: me.id,
-    purpose: "credential_verify",
-  });
+  const r = await callDivinityCoinAPI("health", {}, "GET");
 
   console.log("[dc-verify] result", {
     ok: r.ok,
@@ -35,17 +36,21 @@ export async function POST() {
     });
   }
 
-  // 401 / 403 = real auth failure. Anything else still means we
-  // reached DC and it responded, which is what we wanted to confirm.
   if (r.status === 401 || r.status === 403) {
     return NextResponse.json(
-      { ok: false, error: "Authentication rejected", detail: r.error, status: r.status },
+      {
+        ok: false,
+        error: "Authentication rejected",
+        detail: r.error,
+        status: r.status,
+      },
       { status: 200 },
     );
   }
 
   return NextResponse.json({
-    ok: true,
-    message: `DC reachable (HTTP ${r.status}) — credentials accepted but the test action returned: ${r.error}`,
+    ok: false,
+    error: `DC reachable (HTTP ${r.status}) but returned: ${r.error}`,
+    status: r.status,
   });
 }
