@@ -44,15 +44,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     SendGrid({
       apiKey: process.env.AUTH_SENDGRID_KEY,
       from: process.env.AUTH_EMAIL_FROM,
-      // Override the default email to send a link to our /sign-in/confirm
-      // page (which renders a "Click to sign in" button) instead of the
-      // raw callback. Gmail / Outlook / corporate link-safety scanners
-      // GET the email link before the user clicks; on the raw callback
-      // that GET silently consumes the one-shot verification token and
-      // the user lands on a "Verification" error. The confirm page is a
-      // plain HTML page — bots fetch it harmlessly. Only the button
-      // click navigates to the real callback URL where the token is
-      // consumed for real.
+      // Override the default magic-link send for two reasons:
+      //
+      //   1. **Disable SendGrid click tracking on this email.** Account-wide
+      //      click tracking rewrites every URL into `url{N}.<your domain>/
+      //      ls/click?upn=...` so SendGrid can log clicks. Any URL scanner
+      //      (Gmail's prefetch, Outlook ATP, corporate proxies) that pings
+      //      that wrapper makes SendGrid forward to our callback, which
+      //      consumes the one-shot verification token before the human
+      //      ever clicks. We send `tracking_settings.click_tracking.enable:
+      //      false` so the link in the email is the raw URL.
+      //
+      //   2. **Keep the URL pointed at the real callback.** No intermediate
+      //      "click to confirm" page; defense against the residual prefetch
+      //      problem is the Sec-Fetch-User check in
+      //      src/app/api/auth/[...nextauth]/route.ts.
       async sendVerificationRequest({ identifier: email, url, provider }) {
         const apiKey = provider.apiKey as string | undefined;
         const fromCfg = provider.from;
@@ -65,35 +71,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!apiKey || !from) {
           throw new Error("SendGrid not configured for magic-link sign-in");
         }
-        const callback = new URL(url);
-        const token = callback.searchParams.get("token") ?? "";
-        const encodedEmail = encodeURIComponent(email);
-        const confirmUrl = new URL(callback.origin);
-        confirmUrl.pathname = "/sign-in/confirm";
-        confirmUrl.searchParams.set("token", token);
-        confirmUrl.searchParams.set("email", email);
-        const callbackUrl = callback.searchParams.get("callbackUrl");
-        if (callbackUrl) confirmUrl.searchParams.set("callbackUrl", callbackUrl);
 
-        const host = callback.host;
+        const host = new URL(url).host;
         const subject = `Sign in to ${host}`;
         const text = [
           `Sign in to ${host} as ${email} by clicking this link:`,
           ``,
-          confirmUrl.toString(),
+          url,
           ``,
-          `If you didn't request this, you can ignore the message.`,
+          `If you didn't request this, you can ignore this message.`,
         ].join("\n");
         const html = `
           <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#eee;padding:32px">
             <div style="max-width:480px;margin:0 auto">
               <h1 style="font-size:20px;margin:0 0 16px">Sign in to Indie Comics Live</h1>
               <p style="margin:0 0 24px;color:#aaa">
-                You're signing in as <strong style="color:#fff">${email}</strong>. Click the
-                button below to finish — it's a one-time link tied to this email.
+                Signing in as <strong style="color:#fff">${email}</strong>. Click the button —
+                this is a one-time link.
               </p>
               <p style="margin:0 0 24px">
-                <a href="${confirmUrl.toString()}"
+                <a href="${url}"
                    style="display:inline-block;background:#ff3366;color:#fff;text-decoration:none;
                           padding:14px 28px;border-radius:999px;font-weight:700">
                   Sign in
@@ -101,10 +98,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               </p>
               <p style="margin:0;color:#666;font-size:12px">
                 If the button doesn't work, copy this URL into your browser:<br>
-                <span style="color:#888">${confirmUrl.toString()}</span>
+                <span style="color:#888;word-break:break-all">${url}</span>
               </p>
               <p style="margin:24px 0 0;color:#666;font-size:12px">
-                Didn't ask for this? You can safely ignore this email.
+                Didn't request this? Ignore this email.
               </p>
             </div>
           </body>`;
@@ -123,6 +120,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               { type: "text/plain", value: text },
               { type: "text/html", value: html },
             ],
+            // Per-email override — turn off SendGrid click tracking so
+            // the magic link in the body isn't wrapped in a redirector
+            // that any scanner can blow through.
+            tracking_settings: {
+              click_tracking: { enable: false, enable_text: false },
+              open_tracking: { enable: false },
+              subscription_tracking: { enable: false },
+            },
+            mail_settings: {
+              bypass_list_management: { enable: true },
+            },
           }),
         });
         if (!r.ok) {
@@ -130,7 +138,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           console.error("[auth] SendGrid magic-link send failed", {
             status: r.status,
             body: body.slice(0, 500),
-            to: encodedEmail,
+            to: email,
           });
           throw new Error(`SendGrid send failed: ${r.status}`);
         }
