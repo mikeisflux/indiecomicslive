@@ -13,6 +13,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/chargebacks", label: "Chargebacks" },
   { href: "/admin/ip-blocks", label: "IP blocklist" },
   { href: "/admin/bot-block", label: "Bot blocker" },
+  { href: "/admin/inbox", label: "Inbox" },
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/settings", label: "Settings" },
 ];

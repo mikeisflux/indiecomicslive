@@ -480,6 +480,28 @@ model Follow {
 }
 
 // Admin action audit log. Every privileged action that touches a
+// Incoming email captured by SendGrid Inbound Parse and POSTed to
+// /api/webhooks/sendgrid-inbound. Lets staff read email sent to
+// any address @<configured-domain> from inside /admin/inbox without
+// running a real IMAP server.
+model InboundEmail {
+  id          String   @id @default(uuid()) @db.Uuid
+  fromEmail   String   @map("from_email")
+  fromName    String?  @map("from_name")
+  toEmail     String   @map("to_email")
+  subject     String   @default("")
+  text        String?
+  html        String?
+  spamScore   Float?   @map("spam_score")
+  raw         Json?
+  readAt      DateTime? @map("read_at")
+  receivedAt  DateTime @default(now()) @map("received_at")
+
+  @@index([receivedAt])
+  @@index([toEmail])
+  @@map("inbound_emails")
+}
+
 // user, order, or seller-facing setting writes one row. Append-only;
 // no updates / deletes from app code.
 model AuditLog {
