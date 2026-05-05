@@ -42,7 +42,8 @@ fi
 REQUIRED=(DATABASE_URL AUTH_SECRET AUTH_URL AUTH_SENDGRID_KEY)
 MISSING=""
 for var in "${REQUIRED[@]}"; do
-  val=$(grep -E "^${var}=" "$ENV_FILE" | head -1 | cut -d= -f2-)
+  # `|| true` so a missing var doesn't trip set -e via the pipeline's nonzero exit
+  val=$(grep -E "^${var}=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)
   if [ -z "$val" ] || [[ "$val" == TODO_* ]]; then
     MISSING+="  $var=$val"$'\n'
   fi
