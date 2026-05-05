@@ -31,16 +31,20 @@ export async function POST(req: Request) {
     setupIntentId: parsed.data.setupIntentId,
     paymentMethodId: parsed.data.paymentMethodId,
   });
-  const card =
-    lookup.ok && (lookup.data.card as Record<string, unknown> | undefined);
+  const card: Record<string, unknown> | undefined =
+    lookup.ok && lookup.data.card && typeof lookup.data.card === "object"
+      ? (lookup.data.card as Record<string, unknown>)
+      : undefined;
   const brand =
-    typeof card?.brand === "string" ? (card.brand as string) : null;
+    card && typeof card.brand === "string" ? (card.brand as string) : null;
   const last4 =
-    typeof card?.last4 === "string" ? (card.last4 as string) : "0000";
+    card && typeof card.last4 === "string" ? (card.last4 as string) : "0000";
   const expMonth =
-    typeof card?.exp_month === "number" ? (card.exp_month as number) : 0;
+    card && typeof card.exp_month === "number"
+      ? (card.exp_month as number)
+      : 0;
   const expYear =
-    typeof card?.exp_year === "number" ? (card.exp_year as number) : 0;
+    card && typeof card.exp_year === "number" ? (card.exp_year as number) : 0;
 
   await prisma.sellerChargebackCard.upsert({
     where: { userId: session.user.id },
