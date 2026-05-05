@@ -157,9 +157,37 @@ log "DNS A record OK"
 if [ ! -f "/etc/letsencrypt/live/$STREAM_HOST/fullchain.pem" ]; then
   log "obtaining Let's Encrypt cert for $STREAM_HOST"
   ufw allow 80/tcp >/dev/null 2>&1 || true
+
+  # Free port 80 — something is binding it (streamlick nginx/apache leftover
+  # or Ant Media tomcat reconfigured for :80). Stop common candidates.
+  STOPPED_FOR_CERT=()
+  for svc in nginx apache2 httpd lighttpd caddy; do
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+      log "  stopping $svc to free :80 for certbot"
+      systemctl stop "$svc"
+      STOPPED_FOR_CERT+=("$svc")
+    fi
+  done
+  # If something STILL has :80 (e.g. unmanaged process), kill by port
+  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE ':80$'; then
+    log "  killing remaining :80 listener"
+    fuser -k -n tcp 80 2>/dev/null || true
+    sleep 2
+  fi
+
   certbot certonly --standalone --agree-tos --non-interactive \
     --preferred-challenges http \
     -m "$ADMIN_EMAIL" -d "$STREAM_HOST"
+  CERT_RC=$?
+
+  # Restart anything we stopped
+  for svc in "${STOPPED_FOR_CERT[@]:-}"; do
+    [ -z "$svc" ] && continue
+    log "  restarting $svc"
+    systemctl start "$svc" 2>/dev/null || true
+  done
+
+  [ "$CERT_RC" -ne 0 ] && exit "$CERT_RC"
 fi
 
 # Renewal hook — re-fix Ant Media cert after each renewal.
