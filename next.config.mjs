@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Don't block production builds on TS / lint errors. Prisma 7's
-  // stricter JSON-column typing surfaced a few legacy issues we'll fix
-  // in a follow-up cleanup pass; the runtime behaviour is unaffected.
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "image.mux.com" },

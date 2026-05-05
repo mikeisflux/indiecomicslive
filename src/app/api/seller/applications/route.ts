@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 
 // Current platform agreement version. Bump this when ToS / Seller
 // Agreement / NSFW Policy materially change so we re-prompt.
@@ -137,8 +138,8 @@ export async function POST(req: Request) {
     taxIdLast4: parsed.data.taxIdLast4,
 
     primaryWebsite: parsed.data.primaryWebsite,
-    socialLinks: parsed.data.socialLinks ?? null,
-    priorPlatforms: parsed.data.priorPlatforms ?? null,
+    socialLinks: parsed.data.socialLinks ?? Prisma.JsonNull,
+    priorPlatforms: parsed.data.priorPlatforms ?? Prisma.JsonNull,
     unfulfilledCount: parsed.data.unfulfilledCount ?? 0,
     pastDeliveryIssues: parsed.data.pastDeliveryIssues ?? false,
 
