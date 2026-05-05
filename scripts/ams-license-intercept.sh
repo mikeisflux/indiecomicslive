@@ -87,6 +87,15 @@ log "writing $SITE"
 # Build the listen block — bind to 127.0.0.1 only so it doesn't conflict
 # with any public nginx vhost on this box, AND any of the AMS license
 # hosts will hit this because /etc/hosts points them at 127.0.0.1.
+# Build the JSON response to exactly match AMS's Licence.java POJO
+# (io.antmedia.datastore.db.types.Licence). All fields are String.
+# Note British spelling: licenceId, licenceCount.
+# endDate is 10 years out so AMS sees a valid, long-lived license.
+START_DATE="$(date -u +%Y-%m-%d)"
+END_DATE="$(date -u -d '+10 years' +%Y-%m-%d 2>/dev/null \
+            || date -u -v+10y +%Y-%m-%d 2>/dev/null \
+            || echo '2036-12-31')"
+
 cat > "$SITE" <<EOF
 server {
     listen 127.0.0.1:443 ssl;
@@ -95,12 +104,11 @@ server {
     ssl_certificate     $INTERCEPT_DIR/cert.pem;
     ssl_certificate_key $INTERCEPT_DIR/key.pem;
 
-    # Any path → valid license JSON. AMS's license check is forgiving
-    # about extra fields; the keys it definitely cares about are
-    # 'valid' (or 'status'), 'type', and a non-zero remaining-days.
+    # Mirrors io.antmedia.datastore.db.types.Licence exactly.
+    # Status=Active + endDate 10 years out = AMS treats it as valid.
     location / {
         default_type application/json;
-        return 200 '{"valid":true,"licenceStatus":"Active","status":"Active","type":"Enterprise","licenseType":"Enterprise","licenseDays":365,"licenceCount":-1,"hash":"valid"}';
+        return 200 '{"licenceId":"indiecomicslive","startDate":"$START_DATE","endDate":"$END_DATE","type":"Enterprise","licenceCount":"-1","owner":"Divinity Comics Inc.","status":"Active","hourUsed":"0"}';
     }
 }
 EOF
