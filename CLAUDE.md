@@ -20,7 +20,7 @@ Persistent notes for Claude. Read this on every session start before making chan
 
 ## Process manager: pm2 (NOT systemctl)
 
-We run the app under **pm2**, not systemd. The `scripts/deploy.sh` in this repo still references `systemctl` — that script is stale; use pm2 for restarts. Typical commands:
+We run the app under **pm2**, not systemd. `scripts/deploy.sh` is now pm2-aware (rewrote it 2026-05-05; it builds first, refuses to restart if `.next/BUILD_ID` is missing, then `pm2 reload`s both procs). Typical ad-hoc commands:
 
 ```bash
 pm2 list
@@ -31,6 +31,40 @@ pm2 logs indiecomicslive-ws --lines 200
 ```
 
 Do **not** run `sudo systemctl restart indiecomicslive*` — that's the old setup.
+
+## After every commit: deploy command block
+
+**Whenever I commit + push, end the response with the exact copy-paste block below so the user can deploy.** Substitute the current branch name; default to whatever branch we just pushed to.
+
+```bash
+cd /opt/indiecomicslive
+
+# discard Next's tsconfig auto-reformat so pull doesn't conflict
+git checkout -- tsconfig.json 2>/dev/null || true
+
+# pull
+git fetch --all --prune
+git checkout <BRANCH>
+git pull --ff-only origin <BRANCH>
+
+# rebuild + migrate
+rm -rf .next
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+
+# verify the build before touching pm2
+test -s .next/BUILD_ID && echo "BUILD OK" || { echo "BUILD MISSING - STOP HERE"; exit 1; }
+
+# reload pm2
+pm2 reload indiecomicslive --update-env
+pm2 reload indiecomicslive-ws --update-env
+pm2 save
+pm2 list
+```
+
+If the commit only changes site copy / legal text and there are no schema or dep changes, a faster path is `git pull && npm run build && pm2 reload all` — but the full block above always works and is safe to recommend by default.
 
 ## Payment processors
 
