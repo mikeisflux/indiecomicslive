@@ -1,4 +1,6 @@
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
+import { AuthError } from "next-auth";
 import { auth, signIn } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -30,6 +32,8 @@ export default async function AdminSignIn({
 
   const { error, next } = (await searchParams) ?? {};
   const failed = error === "credentialssignin" || error === "credentials";
+  const safeNext =
+    typeof next === "string" && next.startsWith("/") ? next : "/admin";
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
@@ -41,11 +45,23 @@ export default async function AdminSignIn({
       <form
         action={async (formData: FormData) => {
           "use server";
-          await signIn("admin-credentials", {
-            email: String(formData.get("email") ?? ""),
-            password: String(formData.get("password") ?? ""),
-            redirectTo: next || "/admin",
-          });
+          try {
+            await signIn("admin-credentials", {
+              email: String(formData.get("email") ?? ""),
+              password: String(formData.get("password") ?? ""),
+              redirectTo: safeNext,
+            });
+          } catch (e) {
+            // Next's redirect() throws by design — re-throw so the
+            // redirect actually happens.
+            if (isRedirectError(e)) throw e;
+            if (e instanceof AuthError) {
+              redirect(
+                `/staff-sign-in?error=credentials&next=${encodeURIComponent(safeNext)}`,
+              );
+            }
+            throw e;
+          }
         }}
         className="space-y-3"
       >
