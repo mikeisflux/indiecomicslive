@@ -32,36 +32,41 @@ pm2 logs indiecomicslive-ws --lines 200
 
 Do **not** run `sudo systemctl restart indiecomicslive*` — that's the old setup.
 
+### Run everything as `root` on prod
+
+Production deploys + pm2 run as **root**. The repo dir, the pm2 daemon, and the cron entries all live under root. Any `sudo -iu icl` references in older snippets are stale — ignore them. If `git` ever complains about "dubious ownership," it means something got created by a different user; fix once with `chown -R root:root /opt/indiecomicslive` and add `git config --global --add safe.directory /opt/indiecomicslive` for root.
+
+### Deploy block must be paste-safe
+
+Never use `&& exit 1` patterns in deploy snippets — when pasted into an interactive ssh shell, `exit 1` terminates the user's session. Use `if/else` and let pm2-reload happen only on success.
+
 ## After every commit: deploy command block
 
-**Whenever I commit + push, end the response with the exact copy-paste block below so the user can deploy.** Substitute the current branch name; default to whatever branch we just pushed to.
+**Whenever I commit + push, end the response with the exact copy-paste block below so the user can deploy.** Substitute the current branch name; default to whatever branch we just pushed to. Run it as **root** in `/opt/indiecomicslive` — no `sudo -iu icl`. The `if/else` at the end replaces any `&& exit 1` pattern; otherwise a failed build kicks the user out of their ssh session.
 
 ```bash
 cd /opt/indiecomicslive
 
-# discard Next's tsconfig auto-reformat so pull doesn't conflict
 git checkout -- tsconfig.json 2>/dev/null || true
-
-# pull
 git fetch --all --prune
 git checkout <BRANCH>
 git pull --ff-only origin <BRANCH>
 
-# rebuild + migrate
 rm -rf .next
 npm ci
 npx prisma generate
-npx prisma migrate deploy
+npx prisma db push        # use 'migrate deploy' if a migrations/ folder is added later
 npm run build
 
-# verify the build before touching pm2
-test -s .next/BUILD_ID && echo "BUILD OK" || { echo "BUILD MISSING - STOP HERE"; exit 1; }
-
-# reload pm2
-pm2 reload indiecomicslive --update-env
-pm2 reload indiecomicslive-ws --update-env
-pm2 save
-pm2 list
+if [ -s .next/BUILD_ID ]; then
+  echo "BUILD OK"
+  pm2 reload indiecomicslive --update-env
+  pm2 reload indiecomicslive-ws --update-env
+  pm2 save
+  pm2 list
+else
+  echo "BUILD FAILED — pm2 NOT reloaded; previous build still running."
+fi
 ```
 
 If the commit only changes site copy / legal text and there are no schema or dep changes, a faster path is `git pull && npm run build && pm2 reload all` — but the full block above always works and is safe to recommend by default.
