@@ -14,6 +14,8 @@ export async function getDivinityCoinConfig(): Promise<DivinityCoinConfig | null
   if (settings?.divinityCoinEnabled && settings.divinityCoinApiKey) {
     return {
       apiKey: settings.divinityCoinApiKey,
+      publicKey: settings.divinityCoinPublicKey ?? null,
+      privateKey: settings.divinityCoinPrivateKey ?? null,
       partnerId: settings.divinityCoinPartnerId ?? "",
       webhookSecret: settings.divinityCoinWebhookSecret ?? "",
       baseUrl:
@@ -26,6 +28,8 @@ export async function getDivinityCoinConfig(): Promise<DivinityCoinConfig | null
   if (process.env.DIVINITYCOIN_API_KEY) {
     return {
       apiKey: process.env.DIVINITYCOIN_API_KEY,
+      publicKey: process.env.DIVINITYCOIN_PUBLIC_KEY ?? null,
+      privateKey: process.env.DIVINITYCOIN_PRIVATE_KEY ?? null,
       partnerId: process.env.DIVINITYCOIN_PARTNER_ID ?? "",
       webhookSecret: process.env.DIVINITYCOIN_WEBHOOK_SECRET ?? "",
       baseUrl: process.env.DIVINITYCOIN_API_URL ?? DEFAULT_BASE_URL,

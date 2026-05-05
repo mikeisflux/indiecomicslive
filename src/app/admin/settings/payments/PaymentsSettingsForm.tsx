@@ -7,6 +7,8 @@ type Settings = {
   activeProcessor: "nmi" | "divinitycoin";
   divinityCoinEnabled: boolean;
   divinityCoinApiKey: string | null;
+  divinityCoinPublicKey: string | null;
+  divinityCoinPrivateKey: string | null;
   divinityCoinPartnerId: string | null;
   divinityCoinWebhookSecret: string | null;
   divinityCoinBaseUrl: string | null;
@@ -33,6 +35,8 @@ export default function PaymentsSettingsForm({ initial }: { initial: Settings })
         activeProcessor: s.activeProcessor,
         divinityCoinEnabled: s.divinityCoinEnabled,
         divinityCoinApiKey: s.divinityCoinApiKey || null,
+        divinityCoinPublicKey: s.divinityCoinPublicKey || null,
+        divinityCoinPrivateKey: s.divinityCoinPrivateKey || null,
         divinityCoinPartnerId: s.divinityCoinPartnerId || null,
         divinityCoinWebhookSecret: s.divinityCoinWebhookSecret || null,
         divinityCoinBaseUrl: s.divinityCoinBaseUrl || null,
@@ -100,12 +104,12 @@ export default function PaymentsSettingsForm({ initial }: { initial: Settings })
               />
               <span>
                 <span className="block font-semibold capitalize">
-                  {opt === "nmi" ? "PaymentCloud (NMI)" : "DivinityCoin"}
+                  {opt === "nmi" ? "PaymentCloud (NMI)" : "Divinity Payments"}
                 </span>
                 <span className="block text-xs text-paper/60">
                   {opt === "nmi"
                     ? "Direct Post + CollectJS card form, vault stored on PaymentCloud."
-                    : "Stripe-powered card form on DC's account, refunds + ledger via DC API."}
+                    : "Stripe-powered card form on Divinity's partner account, refunds + ledger via the Divinity Payments API."}
                 </span>
               </span>
             </label>
@@ -145,12 +149,40 @@ export default function PaymentsSettingsForm({ initial }: { initial: Settings })
               className={inp}
               type="password"
               autoComplete="off"
-              placeholder="sk_indiecomicslive-com_..."
+              placeholder="sk_indiecomicslive-com_…"
               value={s.divinityCoinApiKey ?? ""}
               onChange={(e) =>
                 update("divinityCoinApiKey", e.target.value || null)
               }
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-paper/60">Public key</label>
+              <input
+                className={inp}
+                type="password"
+                autoComplete="off"
+                placeholder="sk_indiecomicslive-com_…"
+                value={s.divinityCoinPublicKey ?? ""}
+                onChange={(e) =>
+                  update("divinityCoinPublicKey", e.target.value || null)
+                }
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-paper/60">Private key</label>
+              <input
+                className={inp}
+                type="password"
+                autoComplete="off"
+                placeholder="sk_indiecomicslive-com_…"
+                value={s.divinityCoinPrivateKey ?? ""}
+                onChange={(e) =>
+                  update("divinityCoinPrivateKey", e.target.value || null)
+                }
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

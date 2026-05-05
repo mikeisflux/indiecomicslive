@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getActiveProcessor } from "@/lib/divinitycoin";
 import ReviewActions from "./ReviewActions";
 import EditApplication from "./EditApplication";
 import BackfillChargeback from "./BackfillChargeback";
 import ResendDecisionEmail from "./ResendDecisionEmail";
+import MigrateProcessorButton from "./MigrateProcessorButton";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,7 @@ export default async function SellerApplicationDetail({
               cardLastFour: true,
               expMonth: true,
               expYear: true,
+              processor: true,
             },
           },
         },
@@ -52,6 +55,7 @@ export default async function SellerApplicationDetail({
 
   // Detect a chargeback card that got mis-routed to the buyer table
   // by the earlier flow bug. Used to surface a backfill button below.
+  const activeProcessor = await getActiveProcessor();
   const misroutedBuyerCard = !app.user.chargebackCard
     ? await prisma.userPaymentMethod.findFirst({
         where: { userId: app.user.id, deletedAt: null },
@@ -239,6 +243,29 @@ export default async function SellerApplicationDetail({
                 label="Expires"
                 value={`${String(app.user.chargebackCard.expMonth).padStart(2, "0")}/${app.user.chargebackCard.expYear}`}
               />
+              <Field
+                label="Processor"
+                value={
+                  (app.user.chargebackCard.processor as unknown as string) ===
+                  "divinitycoin"
+                    ? "Divinity Payments"
+                    : "PaymentCloud"
+                }
+              />
+              {(app.user.chargebackCard.processor as unknown as string) !==
+                activeProcessor && (
+                <div className="mt-3">
+                  <MigrateProcessorButton
+                    applicationId={app.id}
+                    fromProcessor={
+                      (app.user.chargebackCard.processor as unknown as
+                        | "nmi"
+                        | "divinitycoin")
+                    }
+                    toProcessor={activeProcessor}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <>

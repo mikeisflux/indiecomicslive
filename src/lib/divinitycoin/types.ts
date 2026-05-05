@@ -17,6 +17,8 @@ export type DivinityCoinEventType =
 
 export interface DivinityCoinConfig {
   apiKey: string;
+  publicKey: string | null;
+  privateKey: string | null;
   partnerId: string;
   webhookSecret: string;
   baseUrl: string;

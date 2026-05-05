@@ -4,8 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
-const NmiCardForm = dynamic(
-  () => import("@/components/payments/NmiCardForm").then((m) => m.NmiCardForm),
+// Card collection is processor-aware: NMI uses CollectJS iframes,
+// DivinityCoin renders Stripe Elements against a setup intent on DC's
+// Connect account. Both share the same { onSuccess, onError } shape
+// behind CardFormRouter so this component doesn't have to care.
+const CardFormRouter = dynamic(
+  () =>
+    import("@/components/payments/CardFormRouter").then(
+      (m) => m.CardFormRouter,
+    ),
   { ssr: false },
 );
 
@@ -35,6 +42,7 @@ type Props = {
   bank: BankInfo;
   chargebackCard: ChargebackCard;
   nmiPublicKey: string | null;
+  processor: "nmi" | "divinitycoin";
 };
 
 export default function ApplyForm({
@@ -43,6 +51,7 @@ export default function ApplyForm({
   bank,
   chargebackCard,
   nmiPublicKey,
+  processor,
 }: Props) {
   const router = useRouter();
   // Read previously-saved form state from localStorage at first mount.
@@ -778,17 +787,16 @@ export default function ApplyForm({
             <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-300">
               Card on file. You&rsquo;re all set.
             </p>
-          ) : nmiPublicKey ? (
-            <NmiCardForm
-              publicKey={nmiPublicKey}
-              submitUrl="/api/seller/chargeback-card"
+          ) : (
+            <CardFormRouter
+              processor={processor}
+              nmiPublicKey={nmiPublicKey}
+              nmiSubmitUrl="/api/seller/chargeback-card"
+              dcIntentUrl="/api/seller/chargeback-card/dc/intent"
+              dcConfirmUrl="/api/seller/chargeback-card/dc/confirm"
               onSuccess={() => setChargebackSaved(true)}
               onError={(m) => setError(m)}
             />
-          ) : (
-            <p className="text-sm text-accent">
-              PaymentCloud not configured. Contact support.
-            </p>
           )}
           <div className="flex justify-between">
             <button

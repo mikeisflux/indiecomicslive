@@ -58,7 +58,14 @@ model PlatformSetting {
   activeProcessor PaymentProcessor @default(nmi) @map("active_processor")
 
   divinityCoinEnabled       Boolean @default(false) @map("divinitycoin_enabled")
+  // DC issues three separate sk_-prefixed tokens per partner:
+  //   apiKey      — generic Partner API access (Bearer)
+  //   publicKey   — surfaced in client requests for low-trust ops
+  //   privateKey  — used to sign sensitive partner operations
+  // Stored as plaintext in DB; admin enters via /admin/settings/payments.
   divinityCoinApiKey        String? @map("divinitycoin_api_key")
+  divinityCoinPublicKey     String? @map("divinitycoin_public_key")
+  divinityCoinPrivateKey    String? @map("divinitycoin_private_key")
   divinityCoinPartnerId     String? @map("divinitycoin_partner_id")
   divinityCoinWebhookSecret String? @map("divinitycoin_webhook_secret")
   divinityCoinBaseUrl       String? @map("divinitycoin_base_url")
@@ -292,6 +299,13 @@ model PaymentCloudBankAccount {
   id     String @id @default(uuid()) @db.Uuid
   userId String @unique @map("user_id") @db.Uuid
 
+  // Which processor owns this row. NMI uses the encrypted PII directly
+  // for ACH out; DC stores a Stripe Connect external account id in
+  // `divinityCoinExternalAccountId` and the encrypted PII columns hold
+  // the values used to bootstrap the Connect onboarding.
+  processor                     PaymentProcessor @default(nmi)
+  divinityCoinExternalAccountId String?          @map("divinitycoin_external_account_id")
+
   bankNameEncrypted               String @map("bank_name_encrypted")
   accountHolderFirstNameEncrypted String @map("account_holder_first_name_encrypted")
   accountHolderLastNameEncrypted  String @map("account_holder_last_name_encrypted")
@@ -323,12 +337,16 @@ model PaymentCloudBankAccount {
 
 // Seller chargeback recovery card. PaymentCloud requires a card on
 // file to recoup chargebacks if the rolling reserve isn't enough. PAN
-// never touches our DB — only the NMI vault id + display data.
+// never touches our DB — only the processor's vault id + display data.
+// `processor` says which gateway owns vaultId: 'nmi' uses an NMI
+// customer_vault_id, 'divinitycoin' uses a Stripe payment_method id
+// generated against DC's Stripe Connect account.
 model SellerChargebackCard {
   id     String @id @default(uuid()) @db.Uuid
   userId String @unique @map("user_id") @db.Uuid
 
-  nmiCustomerVaultId String @unique @map("nmi_customer_vault_id")
+  processor          PaymentProcessor @default(nmi)
+  nmiCustomerVaultId String           @unique @map("nmi_customer_vault_id")
 
   cardBrand    String? @map("card_brand")
   cardLastFour String  @map("card_last_four")

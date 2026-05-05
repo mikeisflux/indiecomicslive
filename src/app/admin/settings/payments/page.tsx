@@ -29,6 +29,8 @@ export default async function PaymentsSettingsPage() {
           activeProcessor: row.activeProcessor as "nmi" | "divinitycoin",
           divinityCoinEnabled: row.divinityCoinEnabled,
           divinityCoinApiKey: row.divinityCoinApiKey,
+          divinityCoinPublicKey: row.divinityCoinPublicKey,
+          divinityCoinPrivateKey: row.divinityCoinPrivateKey,
           divinityCoinPartnerId: row.divinityCoinPartnerId,
           divinityCoinWebhookSecret: row.divinityCoinWebhookSecret,
           divinityCoinBaseUrl: row.divinityCoinBaseUrl,

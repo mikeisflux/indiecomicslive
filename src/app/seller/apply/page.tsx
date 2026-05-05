@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import { loadNmiConfig } from "@/lib/nmi";
+import { getActiveProcessor } from "@/lib/divinitycoin";
 import ApplyForm from "./ApplyForm";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ export default async function SellerApplyPage() {
 
   const config = loadNmiConfig();
   const nmiPublicKey = config?.publicKey ?? null;
+  const processor = await getActiveProcessor();
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-20 pt-8">
@@ -56,6 +58,7 @@ export default async function SellerApplyPage() {
         bank={bank}
         chargebackCard={card}
         nmiPublicKey={nmiPublicKey}
+        processor={processor}
       />
     </main>
   );

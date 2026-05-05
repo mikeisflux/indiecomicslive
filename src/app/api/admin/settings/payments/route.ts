@@ -20,6 +20,8 @@ const Body = z.object({
   activeProcessor: z.enum(["nmi", "divinitycoin"]).optional(),
   divinityCoinEnabled: z.boolean().optional(),
   divinityCoinApiKey: z.string().max(500).nullable().optional(),
+  divinityCoinPublicKey: z.string().max(500).nullable().optional(),
+  divinityCoinPrivateKey: z.string().max(500).nullable().optional(),
   divinityCoinPartnerId: z.string().max(200).nullable().optional(),
   divinityCoinWebhookSecret: z.string().max(500).nullable().optional(),
   divinityCoinBaseUrl: z.string().url().max(500).nullable().optional(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NmiCardForm } from "@/components/payments/NmiCardForm";
+import { CardFormRouter } from "@/components/payments/CardFormRouter";
 
 type SavedMethod = {
   id: string;
@@ -14,8 +14,10 @@ type SavedMethod = {
 
 export default function PaymentMethodClient({
   publicKey,
+  processor,
 }: {
-  publicKey: string;
+  publicKey: string | null;
+  processor: "nmi" | "divinitycoin";
 }) {
   const [methods, setMethods] = useState<SavedMethod[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +49,11 @@ export default function PaymentMethodClient({
             {success}
           </p>
         )}
-        <NmiCardForm
-          publicKey={publicKey}
+        <CardFormRouter
+          processor={processor}
+          nmiPublicKey={publicKey}
+          dcIntentUrl="/api/payment-methods/dc/intent"
+          dcConfirmUrl="/api/payment-methods/dc/confirm"
           onSuccess={() => {
             setSuccess("Card saved.");
             setError(null);
