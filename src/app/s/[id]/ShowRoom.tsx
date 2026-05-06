@@ -48,6 +48,13 @@ type Props = {
   pinnedLot: Lot | null;
   queuedLots: Lot[];
   signedIn: boolean;
+  // Set when the show has ended and a ShowRecording row resolves to a
+  // playable URL (R2-presigned or AMS-direct). Triggers the replay
+  // player instead of the AntMediaPlayer.
+  replayUrl: string | null;
+  // True for the show's seller or one of its moderators — surfaces the
+  // moderator chat-delete buttons on each line.
+  canModerate: boolean;
 };
 
 type ChatMsg = {
@@ -55,6 +62,7 @@ type ChatMsg = {
   userId: string;
   body: string;
   createdAt: string;
+  deletedAt?: string | null;
 };
 
 export default function ShowRoom({
@@ -64,6 +72,8 @@ export default function ShowRoom({
   pinnedLot: initialPinnedLot,
   queuedLots,
   signedIn,
+  replayUrl,
+  canModerate,
 }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -135,6 +145,14 @@ export default function ShowRoom({
         setTimeout(() => setBidErr(null), 2000);
       } else if (msg.type === "lot_closed" && lot && msg.lotId === lot.id) {
         setLot({ ...lot, status: msg.sold ? "sold" : "unsold" });
+      } else if (msg.type === "chat_deleted") {
+        setChat((c) =>
+          c.map((m) =>
+            m.id === msg.messageId
+              ? { ...m, deletedAt: new Date().toISOString() }
+              : m,
+          ),
+        );
       }
     };
 
@@ -167,6 +185,13 @@ export default function ShowRoom({
     pushReaction(kind);
   }
 
+  function deleteChat(messageId: string) {
+    if (!wsRef.current) return;
+    wsRef.current.send(
+      JSON.stringify({ type: "chat_delete", messageId }),
+    );
+  }
+
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
@@ -191,6 +216,20 @@ export default function ShowRoom({
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
         {show.status === "live" ? (
           <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+        ) : replayUrl ? (
+          <>
+            <video
+              src={replayUrl}
+              poster={show.coverImageUrl ?? undefined}
+              controls
+              playsInline
+              preload="metadata"
+              className="h-full w-full bg-black object-contain"
+            />
+            <span className="absolute left-3 top-3 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-paper backdrop-blur">
+              Replay
+            </span>
+          </>
         ) : show.trailerUrl ? (
           <video
             src={show.trailerUrl}
@@ -235,26 +274,40 @@ export default function ShowRoom({
           {chat.length === 0 ? (
             <p className="text-paper/40">Be the first to say something.</p>
           ) : (
-            chat.map((m) => (
-              <p key={m.id}>
-                <span className="text-paper/60">@{m.userId.slice(0, 6)}</span>{" "}
-                <span>{m.body}</span>
-              </p>
-            ))
+            chat
+              .filter((m) => !m.deletedAt)
+              .map((m) => (
+                <p key={m.id} className="group flex items-start gap-2">
+                  <span className="text-paper/60">
+                    @{m.userId.slice(0, 6)}
+                  </span>
+                  <span className="flex-1 break-words">{m.body}</span>
+                  {canModerate && (
+                    <button
+                      onClick={() => deleteChat(m.id)}
+                      aria-label="Delete message"
+                      className="opacity-0 transition group-hover:opacity-100 text-paper/40 hover:text-red-300"
+                    >
+                      ×
+                    </button>
+                  )}
+                </p>
+              ))
           )}
         </div>
-        <div className="border-t border-white/10 p-3">
+        <div className="border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="flex gap-2">
             <input
               value={chatDraft}
               onChange={(e) => setChatDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendChat()}
               placeholder="Say something"
-              className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-white/30"
+              enterKeyHint="send"
+              className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-base outline-none focus:border-accent/60 sm:text-sm"
             />
             <button
               onClick={sendChat}
-              className="rounded-full bg-paper px-4 text-sm font-semibold text-ink"
+              className="rounded-full bg-accent px-5 text-sm font-bold text-white shadow-[0_0_18px_rgba(255,51,102,0.4)]"
             >
               Send
             </button>
@@ -302,24 +355,56 @@ function BidBar({
     (lot.currentBidCents ?? lot.startingBidCents - lot.minIncrementCents) +
     lot.minIncrementCents;
 
+  const closingSoon = remainingSec !== null && remainingSec <= 5;
   return (
-    <div className="border-y border-white/10 bg-white/[0.02] px-4 py-3">
+    <div
+      className={`border-y border-white/10 bg-white/[0.02] px-4 py-3 transition ${
+        closingSoon ? "icl-pulse-dot bg-accent/10" : ""
+      }`}
+    >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{lot.title}</p>
-          <p className="text-xs text-paper/60">
-            {lot.currentBidCents
-              ? `Current: $${(lot.currentBidCents / 100).toFixed(2)} · ${lot.bidCount} bid${lot.bidCount === 1 ? "" : "s"}`
-              : `Start: $${(lot.startingBidCents / 100).toFixed(2)}`}
-            {remainingSec !== null && lot.status === "live"
-              ? ` · ${remainingSec}s`
-              : ""}
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-paper/60">
+            {lot.currentBidCents ? (
+              <>
+                <span>
+                  Current{" "}
+                  <span className="font-mono text-paper">
+                    ${(lot.currentBidCents / 100).toFixed(2)}
+                  </span>
+                </span>
+                <span className="text-paper/30">·</span>
+                <span>
+                  {lot.bidCount} bid{lot.bidCount === 1 ? "" : "s"}
+                </span>
+              </>
+            ) : (
+              <span>
+                Start{" "}
+                <span className="font-mono text-paper">
+                  ${(lot.startingBidCents / 100).toFixed(2)}
+                </span>
+              </span>
+            )}
+            {remainingSec !== null && lot.status === "live" && (
+              <>
+                <span className="text-paper/30">·</span>
+                <span
+                  className={`font-mono ${
+                    closingSoon ? "text-accent" : "text-paper/60"
+                  }`}
+                >
+                  {remainingSec}s
+                </span>
+              </>
+            )}
           </p>
         </div>
         <button
           onClick={onBid}
           disabled={lot.status !== "live"}
-          className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+          className="min-h-[48px] rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_18px_rgba(255,51,102,0.35)] active:scale-95 disabled:opacity-40 disabled:shadow-none"
         >
           Bid ${(next / 100).toFixed(2)}
         </button>

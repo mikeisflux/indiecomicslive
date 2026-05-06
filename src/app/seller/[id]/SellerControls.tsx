@@ -120,6 +120,16 @@ export default function SellerControls({ show, initialLots }: Props) {
 
       {tab === "stream" && (
         <section className="space-y-4">
+          <Link
+            href={`/seller/${show.id}/go-live`}
+            className="icl-glass-accent block rounded-2xl p-4 transition hover:border-accent/60 md:hidden"
+          >
+            <p className="text-sm font-bold text-accent">📱 Go live from your phone →</p>
+            <p className="mt-1 text-xs text-paper/70">
+              Full-screen portrait camera, big tap-to-go-live, swap front/back.
+            </p>
+          </Link>
+
           <div className="space-y-2">
             <h3 className="text-sm font-semibold uppercase tracking-widest text-paper/60">
               Browser broadcast

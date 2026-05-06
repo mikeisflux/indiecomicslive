@@ -202,6 +202,52 @@ wss.on("connection", async (ws, req) => {
       return;
     }
 
+    if (msg.type === "chat_delete") {
+      // Only the show's seller, one of its moderators, or a global
+      // admin can soft-delete a chat row. We re-check on the server
+      // even though the client hides the button — clients lie.
+      const targetId = String(msg.messageId ?? "");
+      if (!targetId) {
+        ws.send(JSON.stringify({ type: "error", reason: "bad_message" }));
+        return;
+      }
+      const [show, mod, me] = await Promise.all([
+        prisma.show.findUnique({
+          where: { id: meta.showId },
+          select: { sellerId: true },
+        }),
+        prisma.showModerator.findUnique({
+          where: {
+            showId_userId: { showId: meta.showId, userId: meta.userId },
+          },
+          select: { userId: true },
+        }),
+        prisma.user.findUnique({
+          where: { id: meta.userId },
+          select: { role: true },
+        }),
+      ]);
+      const isHost = !!show && show.sellerId === meta.userId;
+      const isMod = !!mod;
+      const isAdmin = me?.role === "admin" || me?.role === "super_admin";
+      if (!isHost && !isMod && !isAdmin) {
+        ws.send(JSON.stringify({ type: "error", reason: "forbidden" }));
+        return;
+      }
+      const updated = await prisma.chatMessage.updateMany({
+        where: { id: targetId, showId: meta.showId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (updated.count > 0) {
+        broadcast(meta.showId, {
+          type: "chat_deleted",
+          messageId: targetId,
+          deletedBy: meta.userId,
+        });
+      }
+      return;
+    }
+
     if (msg.type === "bid") {
       const result = await placeBid({
         lotId: msg.lotId,

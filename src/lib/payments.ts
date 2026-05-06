@@ -5,10 +5,52 @@ import {
   type NmiResponse,
 } from "@/lib/nmi";
 import { callDivinityCoinAPI } from "@/lib/divinitycoin";
+import { computeSalesTaxCents } from "@/lib/sales-tax";
 
 export type ChargeResult =
   | { ok: true; transactionId: string }
   | { ok: false; reason: string };
+
+// Look up the buyer's default shipping address state and apply sales
+// tax if we have nexus there. Idempotent on Order.taxJurisdiction —
+// once tax has been computed (even at $0 with a jurisdiction), repeat
+// runs are no-ops. The total `amountCents` already reflects lot price
+// + shipping at this point; we add tax on top so Stripe / NMI see
+// the final all-in number.
+async function applySalesTaxIfNeeded(orderId: string): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      buyerId: true,
+      amountCents: true,
+      salesTaxCents: true,
+      taxJurisdiction: true,
+    },
+  });
+  if (!order) return;
+  if (order.taxJurisdiction || order.salesTaxCents > 0) return;
+
+  const addr = await prisma.userAddress.findFirst({
+    where: { userId: order.buyerId, isDefault: true },
+    select: { state: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!addr?.state) return;
+
+  const taxable = order.amountCents;
+  const tax = await computeSalesTaxCents(addr.state, taxable);
+  if (!tax.jurisdiction) return;
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      amountCents: order.amountCents + tax.cents,
+      salesTaxCents: tax.cents,
+      taxJurisdiction: tax.jurisdiction,
+    },
+  });
+}
 
 // Top-level charge: looks at the buyer's default saved payment method
 // and dispatches to the right processor. NMI uses the long-lived
@@ -17,7 +59,13 @@ export type ChargeResult =
 // payment_method_id we stored at vault time is the same one Stripe
 // used to issue the SetupIntent — re-using it here is a normal
 // merchant-initiated stored-credential transaction.
+//
+// Sales tax is applied (at most once) before either path so the
+// processor sees the all-in number. Repeats stay idempotent on
+// Order.taxJurisdiction.
 export async function chargeOrder(orderId: string): Promise<ChargeResult> {
+  await applySalesTaxIfNeeded(orderId);
+
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, reason: "order_not_found" };
   if (order.status !== "pending_payment") {

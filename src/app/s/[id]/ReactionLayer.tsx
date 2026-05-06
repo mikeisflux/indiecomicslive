@@ -71,8 +71,13 @@ export function ReactionBar({
         <button
           key={kind}
           type="button"
-          onClick={() => onTap(kind)}
-          className="rounded-full px-2 py-1 text-2xl transition hover:scale-125"
+          onClick={() => {
+            onTap(kind);
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              navigator.vibrate?.(10);
+            }
+          }}
+          className="grid h-10 w-10 place-items-center rounded-full text-2xl transition active:scale-90 hover:scale-125"
           aria-label={kind}
         >
           {glyph}

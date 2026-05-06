@@ -8,6 +8,7 @@ import {
 import { isIPBlocked, recordSuspiciousActivity } from "@/lib/bot-blocker";
 import { getClientIP, getUserAgent } from "@/lib/client-ip";
 import { pushToUser } from "@/lib/push";
+import { syncRecordingToR2 } from "@/lib/recording-sync";
 
 // Ant Media stream webhook. Configure via "Stream Webhook" in the
 // admin panel. Body shape (typical):
@@ -131,15 +132,25 @@ export async function POST(req: Request) {
         select: { id: true },
       });
       if (show) {
-        await prisma.showRecording.create({
+        const rec = await prisma.showRecording.create({
           data: {
             showId: show.id,
-            r2Key: path, // stored as-is until the R2 sync job runs
+            r2Key: path, // AMS-relative path; sync job rewrites to R2
             durationSec: ev.duration ? Math.round(ev.duration) : null,
             sizeBytes: ev.fileSize ?? null,
             startedAt: new Date(),
             endedAt: new Date(),
           },
+          select: { id: true },
+        });
+        // Fire-and-forget the AMS → R2 migration so the webhook stays
+        // fast. If it fails, the AMS path keeps working until the
+        // sync cron picks it up.
+        syncRecordingToR2(rec.id).catch((err) => {
+          console.warn("[antmedia/webhook] sync failed", {
+            recordingId: rec.id,
+            err: err instanceof Error ? err.message : String(err),
+          });
         });
       }
     }

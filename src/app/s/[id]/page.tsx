@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { recordingPlaybackUrl } from "@/lib/recording-sync";
 import ShowRoom from "./ShowRoom";
 
 export const dynamic = "force-dynamic";
@@ -70,15 +71,42 @@ export default async function ShowPage({
     ? show.lots.find((l) => l.id === show.pinnedLotId) ?? null
     : null;
 
-  // Is the current viewer already watching this show?
+  // Is the current viewer already watching this show? Are they the
+  // host or one of the show's moderators?
   let isWatching = false;
+  let canModerate = false;
   const session = await auth();
   if (session?.user?.id) {
-    const row = await prisma.watchedShow.findUnique({
-      where: { userId_showId: { userId: session.user.id, showId: show.id } },
-      select: { userId: true },
+    const [watch, mod] = await Promise.all([
+      prisma.watchedShow.findUnique({
+        where: {
+          userId_showId: { userId: session.user.id, showId: show.id },
+        },
+        select: { userId: true },
+      }),
+      prisma.showModerator.findUnique({
+        where: {
+          showId_userId: { showId: show.id, userId: session.user.id },
+        },
+        select: { userId: true },
+      }),
+    ]);
+    isWatching = !!watch;
+    canModerate = !!mod || show.sellerId === session.user.id;
+  }
+
+  // Replay URL: only resolved when the show has ended and a
+  // ShowRecording row exists. Prefers the most recent recording.
+  let replayUrl: string | null = null;
+  if (show.status === "ended") {
+    const rec = await prisma.showRecording.findFirst({
+      where: { showId: show.id },
+      orderBy: { createdAt: "desc" },
+      select: { r2Key: true },
     });
-    isWatching = !!row;
+    if (rec) {
+      replayUrl = await recordingPlaybackUrl({ r2Key: rec.r2Key });
+    }
   }
 
   return (
@@ -98,6 +126,8 @@ export default async function ShowPage({
       pinnedLot={pinnedLot}
       queuedLots={queuedLots}
       signedIn={!!session?.user?.id}
+      replayUrl={replayUrl}
+      canModerate={canModerate}
     />
   );
 }
