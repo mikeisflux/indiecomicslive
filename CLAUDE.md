@@ -199,3 +199,21 @@ Enabled per-platform via `PlatformSetting.recaptchaEnabled` + `recaptchaSiteKey`
 - No tests exist yet — verify changes by typecheck (`npx tsc --noEmit`) and `npm run build`.
 - Don't add backward-compat shims unless asked.
 - Keep comments scarce; prefer self-explanatory code.
+
+## Prisma — verify before writing, never guess
+
+Before writing or editing any `prisma.*` call, read `prisma/schema.prisma` and confirm:
+- The exact model name (camelCase of the model declaration, e.g. `Follow` → `prisma.follow`).
+- Every field name on the model, including its `@map`'d snake_case column. Use the camelCase identifier in code.
+- Every relation field name (used in `include` / `select`).
+- Composite primary keys / unique indexes — Prisma auto-generates the lookup name as `field1_field2` (e.g. `@@unique([lotId, userId])` becomes `where: { lotId_userId: { lotId, userId } }`). Confirm the order matches the `@@id` / `@@unique` decorator.
+- Enum values when filtering: enum literals are bare identifiers (`status: "live"`), not strings of arbitrary case.
+- Any required scalar that lacks a `@default` — `create()` must supply it.
+
+JSON columns (`Json` / `Json?`):
+- Don't cast plain objects with `unknown`-typed values to `Record<string, unknown>` — that fails Prisma's `InputJsonValue` constraint.
+- Type the value with concrete leaves (`Record<string, string>`, etc.) or cast with `as Prisma.InputJsonValue` (import `Prisma` from `@/generated/prisma`).
+
+When using `findMany` / `findUnique`, never pass both `select` and `include` for the same call — Prisma's types reject it. Put nested relations inside `select` instead.
+
+If unsure about a relation name or composite-key key, open `src/generated/prisma/` after `prisma generate` runs to read the typed client. Don't guess.

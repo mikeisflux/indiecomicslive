@@ -140,11 +140,15 @@ export default function EnablePushButton() {
   );
 }
 
-function urlB64ToUint8Array(b64: string): Uint8Array {
+function urlB64ToUint8Array(b64: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (b64.length % 4)) % 4);
   const base64 = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
-  const out = new Uint8Array(raw.length);
+  // Allocate an explicit ArrayBuffer so the returned view's `buffer`
+  // narrows to ArrayBuffer (not ArrayBufferLike). PushManager.subscribe
+  // requires a BufferSource backed by ArrayBuffer, not SharedArrayBuffer.
+  const buf = new ArrayBuffer(raw.length);
+  const out = new Uint8Array(buf);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
 }
