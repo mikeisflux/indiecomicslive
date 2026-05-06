@@ -22,9 +22,12 @@ export default function UserActions({ userId, state, isSelf }: Props) {
   const [reason, setReason] = useState("");
   const [role, setRole] = useState(state.role);
 
-  async function call(body: Record<string, unknown>) {
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function call(body: Record<string, unknown>, successMsg?: string) {
     setBusy(true);
     setError(null);
+    setMsg(null);
     const r = await fetch(`/api/admin/users/${userId}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -33,9 +36,10 @@ export default function UserActions({ userId, state, isSelf }: Props) {
     setBusy(false);
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setError(data.error ?? "Failed");
+      setError(data.message ?? data.error ?? "Failed");
       return;
     }
+    if (successMsg) setMsg(successMsg);
     router.refresh();
   }
 
@@ -100,6 +104,17 @@ export default function UserActions({ userId, state, isSelf }: Props) {
             ? `Block IP ${state.lastKnownIP}`
             : "No known IP"}
         </Btn>
+        <Btn
+          onClick={() =>
+            call(
+              { action: "send_password_reset", reason },
+              "Password-reset email sent.",
+            )
+          }
+          disabled={busy}
+        >
+          Send password-reset email
+        </Btn>
       </div>
 
       <div className="border-t border-white/10 pt-3">
@@ -128,6 +143,7 @@ export default function UserActions({ userId, state, isSelf }: Props) {
       </div>
 
       {error && <p className="text-sm text-red-300">{error}</p>}
+      {msg && <p className="text-sm text-emerald-300">{msg}</p>}
     </section>
   );
 }
