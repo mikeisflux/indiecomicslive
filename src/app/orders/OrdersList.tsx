@@ -7,7 +7,7 @@ export interface OrderRow {
   id: string;
   title: string;
   imageUrl: string | null;
-  kind: "auction" | "buy_now" | "mystery";
+  kind: "auction" | "buy_now" | "mystery" | "pack_break" | "flash";
   amountCents: number;
   status: string;
   createdAt: string;

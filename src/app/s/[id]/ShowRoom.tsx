@@ -23,7 +23,7 @@ type Lot = {
   bidCount: number;
   endsAt: Date | string | null;
   status: string;
-  kind?: "auction" | "buy_now" | "mystery";
+  kind?: "auction" | "buy_now" | "mystery" | "pack_break" | "flash";
   buyNowCents?: number | null;
   inventoryCount?: number;
 };

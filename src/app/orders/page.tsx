@@ -77,7 +77,12 @@ export default async function BuyerDashboard() {
     id: o.id,
     title: o.lot.title ?? "(untitled lot)",
     imageUrl: o.lot.imageUrl,
-    kind: o.lot.kind as unknown as "auction" | "buy_now" | "mystery",
+    kind: o.lot.kind as unknown as
+      | "auction"
+      | "buy_now"
+      | "mystery"
+      | "pack_break"
+      | "flash",
     amountCents: o.amountCents,
     status: o.status as unknown as string,
     createdAt: o.createdAt.toISOString(),

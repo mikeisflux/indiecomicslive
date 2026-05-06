@@ -8,7 +8,7 @@ export interface SearchHit {
   title: string;
   description: string | null;
   imageUrl: string | null;
-  kind: "auction" | "buy_now" | "mystery";
+  kind: "auction" | "buy_now" | "mystery" | "pack_break" | "flash";
   buyNowCents: number | null;
   startingBidCents: number;
   shippingCostCents: number;
@@ -24,7 +24,7 @@ export interface SearchOpts {
   limit?: number;
   sinceCreatedAt?: Date;
   categorySlug?: string | null;
-  kind?: "auction" | "buy_now" | "mystery" | null;
+  kind?: "auction" | "buy_now" | "mystery" | "pack_break" | "flash" | null;
   minCents?: number | null;
   maxCents?: number | null;
   sort?: "newest" | "price_asc" | "price_desc" | "popular";
@@ -107,7 +107,7 @@ export async function searchLots(
     title: l.title,
     description: l.description,
     imageUrl: l.imageUrl,
-    kind: l.kind as unknown as "auction" | "buy_now" | "mystery",
+    kind: l.kind as unknown as "auction" | "buy_now" | "mystery" | "pack_break" | "flash",
     buyNowCents: l.buyNowCents,
     startingBidCents: l.startingBidCents,
     shippingCostCents: l.shippingCostCents,
