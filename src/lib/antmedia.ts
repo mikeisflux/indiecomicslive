@@ -266,6 +266,70 @@ export async function probeAntMediaVersion(
 
 // REST API: get broadcast status (active / idle / etc.). Used to
 // double-check a stream is actually live before flipping show.status.
+// Toggle MP4 recording for an existing broadcast. AMS expects:
+//   PUT /rest/v2/broadcasts/{id}/recording/{true|false}/{format}
+// where format is "mp4". Returns true on a 2xx.
+export async function setBroadcastRecording(
+  config: AntMediaConfig,
+  streamId: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const url = `${baseUrl(config, "https")}/rest/v2/broadcasts/${encodeURIComponent(streamId)}/recording/${enabled ? "true" : "false"}/mp4`;
+  try {
+    const jwt = signRestJwt(config.jwtSecret);
+    const r = await fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+// List VODs (recorded MP4s) for a stream id. AMS exposes a paginated
+// /rest/v2/vods/list endpoint; we scan the first page and filter by
+// streamId since not every install supports the streamId query param.
+export interface AntMediaVod {
+  vodId: string;
+  filePath: string;
+  duration: number;
+  fileSize: number;
+  creationDate: number;
+}
+export async function listBroadcastVods(
+  config: AntMediaConfig,
+  streamId: string,
+): Promise<AntMediaVod[]> {
+  const url = `${baseUrl(config, "https")}/rest/v2/vods/list/0/50?streamId=${encodeURIComponent(streamId)}`;
+  try {
+    const jwt = signRestJwt(config.jwtSecret);
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    if (!r.ok) return [];
+    const items = (await r.json()) as Array<{
+      vodId: string;
+      streamId?: string;
+      filePath: string;
+      duration: number;
+      fileSize: number;
+      creationDate: number;
+    }>;
+    return items
+      .filter((it) => !it.streamId || it.streamId === streamId)
+      .map((it) => ({
+        vodId: it.vodId,
+        filePath: it.filePath,
+        duration: it.duration,
+        fileSize: it.fileSize,
+        creationDate: it.creationDate,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getBroadcastStatus(
   config: AntMediaConfig,
   streamId: string,

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { loadAntMediaConfig, verifyAntMediaWebhook } from "@/lib/antmedia";
+import {
+  loadAntMediaConfig,
+  setBroadcastRecording,
+  verifyAntMediaWebhook,
+} from "@/lib/antmedia";
 import { isIPBlocked, recordSuspiciousActivity } from "@/lib/bot-blocker";
 import { getClientIP, getUserAgent } from "@/lib/client-ip";
 import { pushToUser } from "@/lib/push";
@@ -62,6 +66,7 @@ export async function POST(req: Request) {
         id: true,
         title: true,
         sellerId: true,
+        recordingEnabled: true,
         seller: { select: { name: true, handle: true } },
       },
     });
@@ -70,6 +75,10 @@ export async function POST(req: Request) {
         where: { id: show.id },
         data: { status: "live", startedAt: new Date() },
       });
+      // Auto-toggle recording on the broadcast if the show wants it.
+      if (show.recordingEnabled && event.id) {
+        setBroadcastRecording(config, event.id, true).catch(() => {});
+      }
       // Notify everyone who follows this seller, plus anyone who
       // explicitly watched this scheduled show.
       const [followers, watchers] = await Promise.all([
@@ -102,6 +111,38 @@ export async function POST(req: Request) {
       where: { streamId: event.id },
       data: { status: "ended", endedAt: new Date() },
     });
+  } else if (event.action === "vodReady" || event.action === "vod_ready") {
+    // AMS finished muxing an MP4 for a stream we recorded. Persist a
+    // ShowRecording row pointing at the AMS-served file path. A
+    // background job (TODO) can later pull it to R2; for the MVP, the
+    // replay player streams directly from AMS.
+    const ev = event as unknown as {
+      id?: string;
+      vodName?: string;
+      vodId?: string;
+      filePath?: string;
+      duration?: number;
+      fileSize?: number;
+    };
+    const path = ev.filePath || ev.vodName;
+    if (path && event.id) {
+      const show = await prisma.show.findFirst({
+        where: { streamId: event.id },
+        select: { id: true },
+      });
+      if (show) {
+        await prisma.showRecording.create({
+          data: {
+            showId: show.id,
+            r2Key: path, // stored as-is until the R2 sync job runs
+            durationSec: ev.duration ? Math.round(ev.duration) : null,
+            sizeBytes: ev.fileSize ?? null,
+            startedAt: new Date(),
+            endedAt: new Date(),
+          },
+        });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });
