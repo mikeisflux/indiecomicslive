@@ -82,31 +82,41 @@ We have two processors in the codebase. The branding distinction is critical:
 
 **Never expose `DivinityCoin` / `divinitycoin` to users.** The public brand is **Divinity Payments**.
 
-### Important: DC API surface (confirmed 2026-05-05)
+### Important: DC API surface (last confirmed 2026-05-05)
 
-DC's `/internal` partner API only supports these actions:
+DC's `/internal` partner API supports these actions:
 
 | Method | Action | Use |
 |---|---|---|
-| GET | `health` | Connectivity / auth probe |
+| GET | `health` | Connectivity / auth probe (used by Verify credentials) |
 | GET | `settlements`, `settlement`, `captures` | Read settlement history |
 | POST | `validate` | Redeem a gift-card code |
 | POST | `balance` | Get user's credit balance |
 | POST | `hold` / `release` / `capture` / `record_capture` | Credit-balance ops |
-| POST | `create-payment-intent` | One-shot Stripe PaymentIntent for immediate charge |
+| POST | `create-payment-intent` | Interactive PaymentIntent (buyer present) |
+| POST | `create-setup-intent` | Mint a Stripe SetupIntent so the buyer can save a card on file |
+| POST | `list-payment-methods` | List a buyer's saved cards (with brand/last4/exp) |
+| POST | `detach-payment-method` | Remove a saved card |
+| POST | `charge-saved-payment-method` | **Off-session charge** of a previously saved card (auction wins) |
 | POST | `refund` | Refund a payment |
 | POST | `verify-payment` | Server-side confirm a payment |
 
-**There is no `create-setup-intent` action.** DC does not support saving a card off-session for later auto-charge. Each payment requires a fresh PaymentIntent that the buyer authorizes at charge time.
+#### Saved-card flow (auction MIT)
 
-**Dead-code-against-DC** (any of these calls will return `{ error: 'Invalid action' }`):
-- `src/app/api/payment-methods/dc/intent/route.ts` — "save card" SetupIntent flow
-- `src/app/api/seller/chargeback-card/dc/intent/route.ts` — chargeback recovery card
-- `src/lib/payouts.ts` — `create_payout` action (DC's API doesn't list it; payouts may be settled differently — TBD with DC)
+1. Buyer adds card → `POST /api/payment-methods/dc/intent` calls DC's `create-setup-intent` → returns `{ clientSecret, publishableKey }`.
+2. Browser confirms via Stripe Elements; we get back a `pm_...` id.
+3. `POST /api/payment-methods/dc/confirm` sends just the `paymentMethodId`; the server calls DC's `list-payment-methods` to pull metadata (brand, last4, exp), DC verifies it belongs to this platformUserId, and we persist into `UserPaymentMethod.vaultId`.
+4. Auction win → `chargeOrder()` in `src/lib/payments.ts` calls DC's `charge-saved-payment-method` with `{ platformUserId, paymentMethodId, amount, pledgeId: order.id, projectId: order.lotId }`. `pledgeId` is the idempotency key — retrying with the same value returns the same charge.
+5. Decline returns HTTP 402 with `code` and `declineCode`; surface to admin.
 
-For an **auction platform with merchant-initiated charges**, DC's current API doesn't fit: bidders can't save a card and have us charge them automatically when they win. Two paths forward:
-1. Keep NMI/PaymentCloud as the auction-charge processor (it supports stored vault + MIT) and use DC only for one-shot purchases / credit-balance settlement.
-2. Switch to a "credit-balance" auction model: bidders pre-load DC credits, wins settle via `hold` → `capture` against their balance.
+The seller chargeback-recovery card uses the same flow under `/api/seller/chargeback-card/dc/*`.
+
+#### Why `pledgeId` / `projectId` are reused
+
+DC's terminology comes from indiecrowdfund (its other partner). For us:
+- `pledgeId` = `order.id` (auction win id)
+- `projectId` = `order.lotId` (which lot was won)
+DC doesn't validate the meaning, only that they're stable, unique strings.
 
 ### Legacy: PaymentCloud / NMI
 

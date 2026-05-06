@@ -100,23 +100,18 @@ async function chargeOrderDc(
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, reason: "order_not_found" };
 
-  const buyer = await prisma.user.findUnique({
-    where: { id: order.buyerId },
-    select: { email: true, name: true },
-  });
-
-  // DC creates the Stripe payment-intent off_session against the saved
-  // payment method. confirm:true tells Stripe to charge it immediately.
-  const r = await callDivinityCoinAPI("create-payment-intent", {
+  // DC's charge-saved-payment-method takes platformUserId + the
+  // pm_... id we stored at vault time and runs an off_session
+  // PaymentIntent on DC's Stripe account. The order id doubles as
+  // the idempotency key (`pledgeId` in DC's vocabulary) so a retry
+  // returns the same charge instead of double-billing.
+  const r = await callDivinityCoinAPI("charge-saved-payment-method", {
+    platformUserId: order.buyerId,
+    paymentMethodId: method.vaultId,
     amount: order.amountCents,
     currency: "usd",
-    platformUserId: order.buyerId,
-    email: buyer?.email ?? "",
-    name: buyer?.name ?? "",
-    paymentMethodId: method.vaultId,
-    offSession: true,
-    confirm: true,
-    orderId: order.id,
+    pledgeId: order.id,
+    projectId: order.lotId,
     description: `Auction lot ${order.lotId}`,
   });
 
