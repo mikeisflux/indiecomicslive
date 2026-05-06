@@ -6,13 +6,12 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_SEED = [
   { slug: "comics", name: "Comics", iconEmoji: "📚", position: 1 },
-  { slug: "manga", name: "Manga", iconEmoji: "🍙", position: 2 },
-  { slug: "trading-cards", name: "Trading Cards", iconEmoji: "🃏", position: 3 },
-  { slug: "art-books", name: "Art Books", iconEmoji: "🎨", position: 4 },
-  { slug: "original-art", name: "Original Art", iconEmoji: "✏️", position: 5 },
-  { slug: "collectibles", name: "Collectibles", iconEmoji: "🧸", position: 6 },
-  { slug: "vintage", name: "Vintage", iconEmoji: "📻", position: 7 },
-  { slug: "adult", name: "Adult", iconEmoji: "🔞", position: 8 },
+  { slug: "trading-cards", name: "Trading Cards", iconEmoji: "🃏", position: 2 },
+  { slug: "art-books", name: "Art Books", iconEmoji: "🎨", position: 3 },
+  { slug: "original-art", name: "Original Art", iconEmoji: "✏️", position: 4 },
+  { slug: "collectibles", name: "Collectibles", iconEmoji: "🧸", position: 5 },
+  { slug: "vintage", name: "Vintage", iconEmoji: "📻", position: 6 },
+  { slug: "adult", name: "Adult", iconEmoji: "🔞", position: 7 },
 ];
 
 export default async function AdminCategoriesPage() {
@@ -102,8 +101,8 @@ export default async function AdminCategoriesPage() {
         action={add}
         className="flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4"
       >
-        <Field label="Name" name="name" placeholder="Manga" />
-        <Field label="Slug" name="slug" placeholder="manga" />
+        <Field label="Name" name="name" placeholder="Vintage" />
+        <Field label="Slug" name="slug" placeholder="vintage" />
         <Field label="Emoji" name="icon" placeholder="🍙" width="w-20" />
         <button className="rounded-full bg-accent px-5 py-2 text-xs font-bold text-white">
           Add category

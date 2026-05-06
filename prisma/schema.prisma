@@ -693,7 +693,7 @@ model Lot {
 }
 
 // Browseable taxonomy. Two-level: a parent (Comics, Cards, Art Books,
-// Originals, Collectibles) and zero-or-more children (Indie, Manga,
+// Originals, Collectibles) and zero-or-more children (Indie, Vintage,
 // NSFW, Pokémon, etc.). Sellers pick one Category per lot. The
 // homepage browse strip + /search facet read from this table.
 model Category {

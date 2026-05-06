@@ -958,7 +958,6 @@ function CategoryPicker({
     "TCG (Pokemon, MTG, etc.)",
     "Sports cards",
     "Slabs (CGC / PSA / etc.)",
-    "Manga",
     "Webtoons / digital",
   ];
   function toggle(opt: string) {

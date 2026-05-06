@@ -15,7 +15,7 @@ export default function ContentGuidelines() {
         <li>Adult / NSFW comics and art books that comply with the{" "}
           <a href="/legal/nsfw">NSFW Policy</a>;</li>
         <li>Trading cards (sports, TCG) and slabs (CGC, PSA, BGS);</li>
-        <li>Manga, webtoons, art books, and zines.</li>
+        <li>Webtoons, art books, and zines.</li>
       </ul>
 
       <h2>2. Prohibited Content</h2>
