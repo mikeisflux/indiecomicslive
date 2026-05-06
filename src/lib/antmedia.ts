@@ -189,13 +189,16 @@ export async function probeAntMediaVersion(
   latencyMs?: number;
   error?: string;
 }> {
+  // Per-app /version is unauthenticated on AMS Enterprise (2.16+).
+  // Don't send any Authorization header here — AMS's REST filter
+  // rejects ANY request that carries an unrecognized auth header
+  // even on otherwise-public endpoints. (The legacy ANT_MEDIA_REST_USER
+  // / ANT_MEDIA_REST_PASS env vars are still kept on AntMediaConfig
+  // for other endpoints that genuinely require auth.)
   const url = `${baseUrl(config, "https")}/rest/v2/version`;
   const t0 = Date.now();
   try {
-    const headers: Record<string, string> = {};
-    if (config.restAuth) headers.Authorization = `Basic ${config.restAuth}`;
     const res = await fetch(url, {
-      headers,
       signal: AbortSignal.timeout(5000),
     });
     const latencyMs = Date.now() - t0;
