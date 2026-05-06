@@ -55,7 +55,7 @@ export function baseUrl(config: AntMediaConfig, scheme: "https" | "wss") {
 // When either is on, requests need a JWT signed by the configured
 // REST secret in the Authorization header. We sign a short-lived
 // HS256 token so the probe + management calls survive both filters.
-function signRestJwt(secret: string, ttlSeconds = 300): string {
+export function signRestJwt(secret: string, ttlSeconds = 300): string {
   const header = { alg: "HS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const payload = { iat: now, exp: now + ttlSeconds };
