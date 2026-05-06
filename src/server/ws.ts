@@ -227,28 +227,31 @@ wss.on("connection", async (ws, req) => {
         return;
       }
 
-      broadcast(meta.showId, {
-        type: "bid_accepted",
-        lotId: result.lotId,
-        currentBidCents: result.newCurrentBidCents,
-        currentBidUserId: result.currentBidUserId,
-        endsAt: result.endsAt,
-        bidCount: result.bidCount,
-      });
-
-      // Outbid notification — fire-and-forget push to whoever just
-      // got bumped out of the top spot.
-      if (
-        result.previousHighBidderId &&
-        result.previousHighBidderId !== result.currentBidUserId
-      ) {
-        const dollars = (result.newCurrentBidCents / 100).toFixed(2);
-        pushToUser(result.previousHighBidderId, {
-          kind: "outbid",
-          title: `You've been outbid — ${result.lotTitle}`,
-          body: `New high bid is $${dollars}. Tap to bid back.`,
-          url: result.showId ? `/s/${result.showId}` : "/",
-        }).catch(() => {});
+      // Broadcast every step (manual + each proxy resolution) and
+      // push an outbid notification to whoever got displaced at each
+      // step. The final state lives on the last event.
+      for (const ev of result.events) {
+        broadcast(meta.showId, {
+          type: "bid_accepted",
+          lotId: ev.lotId,
+          currentBidCents: ev.amountCents,
+          currentBidUserId: ev.bidderId,
+          endsAt: ev.endsAt,
+          bidCount: ev.bidCount,
+          proxy: ev.proxy,
+        });
+        if (
+          ev.previousHighBidderId &&
+          ev.previousHighBidderId !== ev.bidderId
+        ) {
+          const dollars = (ev.amountCents / 100).toFixed(2);
+          pushToUser(ev.previousHighBidderId, {
+            kind: "outbid",
+            title: `You've been outbid — ${ev.lotTitle}`,
+            body: `New high bid is $${dollars}. Tap to bid back.`,
+            url: ev.showId ? `/s/${ev.showId}` : "/",
+          }).catch(() => {});
+        }
       }
       return;
     }

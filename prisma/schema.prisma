@@ -38,6 +38,8 @@ enum LotKind {
   auction      // Standard timed-bid auction lot.
   buy_now      // Fixed price; first buyer wins.
   mystery      // Buy-now flow but contents are hidden until purchase.
+  pack_break   // Live pack opening — N spots, each ships a random pull.
+  flash        // Lightning auction (sub-10s timer, no soft close).
 }
 
 enum OrderStatus {
@@ -249,6 +251,12 @@ model User {
   followedBy        Follow[]            @relation("Followed")
   lotsAsHighBidder  Lot[]               @relation("HighBidder")
   savedAddresses    UserAddress[]
+  autoBids          AutoBid[]
+  giveawaysHosted   Giveaway[]          @relation("GiveawayHost")
+  giveawaysWon      Giveaway[]          @relation("GiveawayWinner")
+  giveawayEntries   GiveawayEntry[]
+  modShows          ShowModerator[]
+  broadcasts        SellerBroadcast[]   @relation("SellerBroadcasts")
 
   // Seller's return / ship-from address (used by ShipStation labels).
   // Stored as JSON to keep the User row narrow:
@@ -516,6 +524,8 @@ model Show {
   lots         Lot[]
   chatMessages ChatMessage[]
   watchers     WatchedShow[]
+  giveaways    Giveaway[]
+  moderators   ShowModerator[]
 
   @@index([sellerId])
   @@index([status])
@@ -591,6 +601,14 @@ model Lot {
   // How many distinct items are bundled in the mystery box. Surfaces
   // on the buyer card ("3 items inside") to set expectations.
   mysteryItemCount  Int?      @map("mystery_item_count")
+  // Pack breaks: how many spots are sold in this break (e.g. 12 spots
+  // for a 12-card pack). Each spot is ordered separately as the seller
+  // pulls cards on stream. Only meaningful for kind="pack_break".
+  packSpots         Int?      @map("pack_spots")
+  // Flash-auction soft-close override. When kind="flash" the lot uses
+  // a tiny duration with no soft close so the room stays in lightning
+  // mode (intentionally different from softCloseSeconds = 0 default).
+  flashDurationSeconds Int?   @map("flash_duration_seconds")
   status            LotStatus @default(queued)
   currentBidCents   Int?      @map("current_bid_cents")
   currentBidUserId  String?   @map("current_bid_user_id") @db.Uuid
@@ -613,6 +631,7 @@ model Lot {
   // lot detail page.
   images        LotImage[]
   watchers      WatchedLot[]
+  autoBids      AutoBid[]
 
   @@index([showId])
   @@index([sellerId, status])
@@ -667,6 +686,9 @@ model Bid {
   amountCents  Int      @map("amount_cents")
   accepted     Boolean
   rejectReason String?  @map("reject_reason")
+  // True when this bid was placed by the proxy auto-bid engine on
+  // behalf of an AutoBid row, not a direct user click.
+  proxy        Boolean  @default(false)
   createdAt    DateTime @default(now()) @map("created_at")
 
   lot  Lot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
@@ -675,6 +697,109 @@ model Bid {
   @@index([lotId])
   @@index([userId])
   @@map("bids")
+}
+
+// Max-bid proxy. Buyer sets a ceiling and the engine bumps their bid
+// in lockstep with min increments until either they hold the lead or
+// they hit the cap. One row per (lot, user) — re-submitting updates
+// the cap.
+model AutoBid {
+  id            String   @id @default(uuid()) @db.Uuid
+  lotId         String   @map("lot_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  maxAmountCents Int     @map("max_amount_cents")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  lot  Lot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([lotId, userId])
+  @@index([lotId, active])
+  @@map("auto_bids")
+}
+
+// Live-show giveaway. Seller starts one mid-stream; viewers tap an
+// "enter" button. At close, a random entry wins and the seller ships
+// the prize through the normal order/label flow. winnerId is null
+// until rolled. Only one active giveaway per show at a time
+// (enforced in the route, not the schema).
+enum GiveawayStatus {
+  open
+  closed
+  drawn
+  cancelled
+}
+
+model Giveaway {
+  id          String         @id @default(uuid()) @db.Uuid
+  showId      String         @map("show_id") @db.Uuid
+  hostId      String         @map("host_id") @db.Uuid
+  prize       String
+  description String?
+  rules       String?
+  closesAt    DateTime?      @map("closes_at")
+  drawnAt     DateTime?      @map("drawn_at")
+  winnerId    String?        @map("winner_id") @db.Uuid
+  status      GiveawayStatus @default(open)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  show    Show              @relation(fields: [showId], references: [id], onDelete: Cascade)
+  host    User              @relation("GiveawayHost", fields: [hostId], references: [id])
+  winner  User?             @relation("GiveawayWinner", fields: [winnerId], references: [id])
+  entries GiveawayEntry[]
+
+  @@index([showId, status])
+  @@map("giveaways")
+}
+
+model GiveawayEntry {
+  giveawayId String   @map("giveaway_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([giveawayId, userId])
+  @@index([userId])
+  @@map("giveaway_entries")
+}
+
+// Per-show moderator role. Lets a seller deputize trusted viewers to
+// delete chat messages, ban chat-spammers, and run giveaways. Hosts
+// are the seller themselves and are implicit (not a row here).
+model ShowModerator {
+  showId    String   @map("show_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  show Show @relation(fields: [showId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([showId, userId])
+  @@index([userId])
+  @@map("show_moderators")
+}
+
+// Seller broadcast to all of their followers. One row per blast;
+// fans out via push + email. The Whatnot equivalent is missing today,
+// which is one of the loudest seller complaints.
+model SellerBroadcast {
+  id         String   @id @default(uuid()) @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  subject    String
+  body       String
+  url        String?
+  sentAt     DateTime? @map("sent_at")
+  recipients Int       @default(0)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  seller User @relation("SellerBroadcasts", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, createdAt])
+  @@map("seller_broadcasts")
 }
 
 model Order {

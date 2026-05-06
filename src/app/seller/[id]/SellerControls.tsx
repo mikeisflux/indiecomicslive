@@ -7,6 +7,7 @@ import LotManager from "./LotManager";
 import PinControl from "./PinControl";
 import ShowSettings from "./ShowSettings";
 import ObsCredentials from "@/components/ObsCredentials";
+import StageControls from "./StageControls";
 
 const AntMediaPublisher = dynamic(
   () => import("@/components/AntMediaPublisher"),
@@ -27,6 +28,7 @@ export type Lot = {
 
 type Tab =
   | "stream"
+  | "stage"
   | "lots"
   | "pinned"
   | "orders"
@@ -72,6 +74,7 @@ export default function SellerControls({ show, initialLots }: Props) {
 
   const tabs: { id: Tab; label: string; badge?: string }[] = [
     { id: "stream", label: "Stream" },
+    { id: "stage", label: "Stage" },
     { id: "lots", label: "Lots", badge: String(initialLots.length) },
     {
       id: "pinned",
@@ -162,6 +165,8 @@ export default function SellerControls({ show, initialLots }: Props) {
           </details>
         </section>
       )}
+
+      {tab === "stage" && <StageControls showId={show.id} />}
 
       {tab === "lots" && (
         <LotManager

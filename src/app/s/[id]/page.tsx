@@ -97,6 +97,7 @@ export default async function ShowPage({
       liveLot={liveLot}
       pinnedLot={pinnedLot}
       queuedLots={queuedLots}
+      signedIn={!!session?.user?.id}
     />
   );
 }

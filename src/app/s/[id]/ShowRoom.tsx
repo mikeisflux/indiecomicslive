@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import StreamOverlay from "./StreamOverlay";
 import ReactionLayer, { ReactionBar } from "./ReactionLayer";
 import WatchButton from "@/components/WatchButton";
+import AutoBidButton from "@/components/AutoBidButton";
+import ShowSideWidgets from "@/components/ShowSideWidgets";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -44,6 +46,7 @@ type Props = {
   liveLot: Lot | null;
   pinnedLot: Lot | null;
   queuedLots: Lot[];
+  signedIn: boolean;
 };
 
 type ChatMsg = {
@@ -59,6 +62,7 @@ export default function ShowRoom({
   liveLot: initialLot,
   pinnedLot: initialPinnedLot,
   queuedLots,
+  signedIn,
 }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -211,6 +215,14 @@ export default function ShowRoom({
       </div>
 
       <BidBar lot={lot} onBid={placeBid} bidErr={bidErr} />
+
+      {lot && (lot.kind === "auction" || (lot.kind as unknown as string) === "flash") && (
+        <div className="flex justify-end px-4 pb-2">
+          <AutoBidButton lotId={lot.id} initialMaxDollars={null} />
+        </div>
+      )}
+
+      <ShowSideWidgets showId={show.id} signedIn={signedIn} />
 
       <div className="flex flex-1 flex-col">
         <div className="flex-1 space-y-1 overflow-y-auto px-4 py-3 text-sm">
