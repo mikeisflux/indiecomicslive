@@ -480,6 +480,10 @@ model Show {
   endedAt       DateTime?  @map("ended_at")
   streamId      String?    @map("stream_id")
   recordingUrl  String?    @map("recording_url")
+  // Optional pre-show trailer video the seller can upload. Plays on
+  // the public show page when the show isn't live yet, and as a
+  // preview thumbnail elsewhere.
+  trailerUrl    String?    @map("trailer_url")
   // The "now selling" lot the seller wants spotlighted in the viewer.
   // Distinct from Lot.status='live' (which is the auction-engine bid
   // window). Sellers can pin a lot to highlight it before its auction

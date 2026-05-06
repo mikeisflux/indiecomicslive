@@ -5,6 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import LotManager from "./LotManager";
 import PinControl from "./PinControl";
+import ShowSettings from "./ShowSettings";
 import ObsCredentials from "@/components/ObsCredentials";
 
 const AntMediaPublisher = dynamic(
@@ -39,6 +40,11 @@ type Props = {
     status: string;
     pinnedLotId: string | null;
     chatOverlayEnabled: boolean;
+    title: string;
+    description: string | null;
+    coverImageUrl: string | null;
+    trailerUrl: string | null;
+    scheduledFor: string | null;
   };
   initialLots: Lot[];
 };
@@ -205,13 +211,16 @@ export default function SellerControls({ show, initialLots }: Props) {
       )}
 
       {tab === "settings" && (
-        <Stub
-          title="Show settings"
-          body="Edit show title, description, and cover image."
-          actions={[
-            { href: "/seller", label: "Back to all shows" },
-            { href: "/seller/ship-from", label: "Return address" },
-          ]}
+        <ShowSettings
+          initial={{
+            id: show.id,
+            title: show.title,
+            description: show.description,
+            coverImageUrl: show.coverImageUrl,
+            trailerUrl: show.trailerUrl,
+            scheduledFor: show.scheduledFor,
+            status: show.status,
+          }}
         />
       )}
     </div>

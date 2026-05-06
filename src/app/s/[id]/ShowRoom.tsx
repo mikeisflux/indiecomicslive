@@ -30,6 +30,7 @@ type Props = {
     title: string;
     status: string;
     coverImageUrl: string | null;
+    trailerUrl: string | null;
     pinnedLotId: string | null;
     chatOverlayEnabled: boolean;
   };
@@ -171,7 +172,19 @@ export default function ShowRoom({
       </header>
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
-        <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+        {show.status === "live" ? (
+          <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+        ) : show.trailerUrl ? (
+          <video
+            src={show.trailerUrl}
+            poster={show.coverImageUrl ?? undefined}
+            controls
+            playsInline
+            className="h-full w-full bg-black object-contain"
+          />
+        ) : (
+          <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+        )}
         <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
         <ReactionLayer reactions={reactions} />
         <ReactionBar onTap={sendReaction} />

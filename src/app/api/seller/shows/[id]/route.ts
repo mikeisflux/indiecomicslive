@@ -15,6 +15,8 @@ const Body = z.object({
   description: z.string().max(2000).optional().nullable(),
   scheduledFor: z.string().datetime().optional().nullable(),
   chatOverlayEnabled: z.boolean().optional(),
+  coverImageUrl: z.string().url().optional().nullable(),
+  trailerUrl: z.string().url().optional().nullable(),
 });
 
 export async function PATCH(
@@ -48,6 +50,12 @@ export async function PATCH(
   }
   if (parsed.data.chatOverlayEnabled !== undefined) {
     data.chatOverlayEnabled = parsed.data.chatOverlayEnabled;
+  }
+  if (parsed.data.coverImageUrl !== undefined) {
+    data.coverImageUrl = parsed.data.coverImageUrl;
+  }
+  if (parsed.data.trailerUrl !== undefined) {
+    data.trailerUrl = parsed.data.trailerUrl;
   }
 
   const updated = await prisma.show.update({ where: { id }, data });

@@ -76,6 +76,7 @@ export default async function ShowPage({
         title: show.title,
         status: show.status,
         coverImageUrl: show.coverImageUrl,
+        trailerUrl: show.trailerUrl,
         pinnedLotId: show.pinnedLotId,
         chatOverlayEnabled: show.chatOverlayEnabled,
       }}

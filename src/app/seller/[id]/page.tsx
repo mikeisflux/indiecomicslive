@@ -36,6 +36,11 @@ export default async function SellerShowPage({
           status: show.status,
           pinnedLotId: show.pinnedLotId,
           chatOverlayEnabled: show.chatOverlayEnabled,
+          title: show.title,
+          description: show.description,
+          coverImageUrl: show.coverImageUrl,
+          trailerUrl: show.trailerUrl,
+          scheduledFor: show.scheduledFor?.toISOString() ?? null,
         }}
         initialLots={show.lots.map((l) => ({
           id: l.id,
