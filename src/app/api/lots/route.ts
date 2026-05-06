@@ -20,6 +20,9 @@ const Body = z
     softCloseSeconds: z.number().int().min(3).max(60).optional(),
     buyNowCents: z.number().int().positive().optional(),
     inventoryCount: z.number().int().positive().optional(),
+    // Mystery-only: revealed-on-purchase contents.
+    mysteryContentsHtml: z.string().max(50_000).optional(),
+    mysteryItemCount: z.number().int().positive().max(50).optional(),
   })
   .refine(
     (d) =>
@@ -90,6 +93,14 @@ export async function POST(req: Request) {
       softCloseSeconds: parsed.data.softCloseSeconds ?? 10,
       buyNowCents: parsed.data.buyNowCents ?? null,
       inventoryCount: parsed.data.inventoryCount ?? 1,
+      mysteryContentsHtml:
+        parsed.data.kind === "mystery"
+          ? parsed.data.mysteryContentsHtml ?? null
+          : null,
+      mysteryItemCount:
+        parsed.data.kind === "mystery"
+          ? parsed.data.mysteryItemCount ?? null
+          : null,
     },
   });
 

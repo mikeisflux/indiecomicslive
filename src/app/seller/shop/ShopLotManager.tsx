@@ -95,6 +95,8 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("10.00");
   const [inventory, setInventory] = useState("1");
+  const [mysteryContents, setMysteryContents] = useState("");
+  const [mysteryItemCount, setMysteryItemCount] = useState("3");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -133,18 +135,24 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
       }
       imageUrl = url;
     }
+    const body: Record<string, unknown> = {
+      kind,
+      title,
+      description: description || undefined,
+      imageUrl,
+      buyNowCents: Math.round(Number(price) * 100),
+      inventoryCount: Math.max(1, Math.round(Number(inventory))),
+      startingBidCents: 0,
+    };
+    if (kind === "mystery") {
+      body.mysteryContentsHtml = mysteryContents || undefined;
+      const n = Math.round(Number(mysteryItemCount));
+      if (Number.isFinite(n) && n > 0) body.mysteryItemCount = n;
+    }
     const r = await fetch("/api/lots", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind,
-        title,
-        description: description || undefined,
-        imageUrl,
-        buyNowCents: Math.round(Number(price) * 100),
-        inventoryCount: Math.max(1, Math.round(Number(inventory))),
-        startingBidCents: 0,
-      }),
+      body: JSON.stringify(body),
     });
     setBusy(false);
     const data = await r.json();
@@ -240,6 +248,35 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
           />
         </label>
       </div>
+      {kind === "mystery" && (
+        <div className="space-y-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-3">
+          <p className="text-xs text-purple-200">
+            Mystery boxes hide contents from the buyer until they purchase.
+          </p>
+          <label className="block space-y-1 text-xs text-paper/60">
+            Items inside (count shown to buyer)
+            <input
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value={mysteryItemCount}
+              onChange={(e) => setMysteryItemCount(e.target.value)}
+              className={inp}
+            />
+          </label>
+          <label className="block space-y-1 text-xs text-paper/60">
+            Hidden contents (revealed after purchase, supports basic HTML)
+            <textarea
+              value={mysteryContents}
+              onChange={(e) => setMysteryContents(e.target.value)}
+              rows={4}
+              placeholder={`<ul>\n  <li>1x Comic A</li>\n  <li>1x Mystery sketch card</li>\n</ul>`}
+              className={`${inp} resize-y font-mono text-xs`}
+            />
+          </label>
+        </div>
+      )}
       <label className="block space-y-1 text-xs text-paper/60">
         Cover image
         <input

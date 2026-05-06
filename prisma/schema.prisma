@@ -474,6 +474,13 @@ model Lot {
   // Buy-Now / mystery lot fields
   buyNowCents       Int?      @map("buy_now_cents")
   inventoryCount    Int       @default(1) @map("inventory_count")
+  // Mystery-specific: hidden contents revealed only after a successful
+  // purchase. Stored as HTML (rich-text editor in seller UI). Buyers
+  // see a generic placeholder until their order.status >= paid.
+  mysteryContentsHtml String? @map("mystery_contents_html")
+  // How many distinct items are bundled in the mystery box. Surfaces
+  // on the buyer card ("3 items inside") to set expectations.
+  mysteryItemCount  Int?      @map("mystery_item_count")
   status            LotStatus @default(queued)
   currentBidCents   Int?      @map("current_bid_cents")
   currentBidUserId  String?   @map("current_bid_user_id") @db.Uuid

@@ -20,7 +20,16 @@ export default async function OrderPage({
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
-      lot: { select: { title: true, imageUrl: true, description: true } },
+      lot: {
+        select: {
+          title: true,
+          imageUrl: true,
+          description: true,
+          kind: true,
+          mysteryContentsHtml: true,
+          mysteryItemCount: true,
+        },
+      },
       seller: { select: { handle: true, name: true } },
     },
   });
@@ -83,6 +92,31 @@ export default async function OrderPage({
           <p>{order.lot.description}</p>
         </div>
       )}
+
+      {order.lot.kind === "mystery" &&
+        ["paid", "shipped", "delivered"].includes(order.status) && (
+          <div className="mt-8 rounded-2xl border border-purple-500/30 bg-purple-500/5 p-5 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-purple-300">
+              Mystery box reveal
+              {order.lot.mysteryItemCount
+                ? ` · ${order.lot.mysteryItemCount} items`
+                : ""}
+            </p>
+            {order.lot.mysteryContentsHtml ? (
+              <div
+                className="prose prose-invert mt-3 max-w-none text-sm"
+                dangerouslySetInnerHTML={{
+                  __html: order.lot.mysteryContentsHtml,
+                }}
+              />
+            ) : (
+              <p className="mt-2 text-paper/60">
+                The seller hasn&rsquo;t set the contents yet. They&rsquo;ll
+                show here once the package is on the way.
+              </p>
+            )}
+          </div>
+        )}
     </main>
   );
 }
