@@ -161,7 +161,7 @@ Sellers are paid out weekly on Thursdays for orders that have been **tracking-co
 
 - Library: `src/lib/payouts.ts` — `processWeeklyPayouts()` finds eligible orders, groups by seller, computes `net = gross - platform_fee + shipping_reimbursement`, creates a `Payout` row, dispatches via DC, marks orders with `payoutId`.
 - Eligibility: `order.status === 'delivered' AND deliveredAt IS NOT NULL AND payoutId IS NULL`.
-- Platform fee: `PLATFORM_FEE_BPS` env (default 1000 = 10%).
+- Platform fee: `PLATFORM_FEE_BPS` env (default **600 = 6%**, intentionally 2 points under Whatnot's 8% commission). Stripe processing (~2.9% + $0.30) passes through at cost via DivinityCoin and is **not** included in this number — sellers see ~9% all-in vs Whatnot's ~11%.
 - Cron: `POST /api/cron/payouts` with `Authorization: Bearer $CRON_SECRET`. Idempotent — safe to re-run for the same week. Wire as a system cron on the app server:
   ```
   0 13 * * 4 curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://indiecomicslive.com/api/cron/payouts >>/var/log/icl-payouts.log 2>&1

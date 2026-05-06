@@ -98,6 +98,10 @@ export default function SellLanding() {
 
         <section id="why" className="mt-16 grid gap-6 sm:grid-cols-3">
           <Card
+            title="6% commission"
+            body="Two points under Whatnot's 8%. Stripe processing passes through at cost. Net: about 9% all-in vs Whatnot's ~11%."
+          />
+          <Card
             title="Adult-friendly"
             body="High-risk-friendly payment processor (Divinity Payments) and self-hosted streaming (Ant Media). Your account isn't going to disappear because of a content review."
           />
