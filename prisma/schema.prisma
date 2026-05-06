@@ -238,6 +238,8 @@ model User {
   reviewsAsBuyer    Review[]            @relation("ReviewBuyer")
   reviewsAsSeller   Review[]            @relation("ReviewSeller")
   savedSearches     SavedSearch[]
+  disputesOpened    OrderDispute[]      @relation("DisputeOpened")
+  disputesResolved  OrderDispute[]      @relation("DisputeResolver")
   passwordResetTokens PasswordResetToken[]
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]
@@ -691,6 +693,7 @@ model Order {
   payout    Payout?   @relation(fields: [payoutId], references: [id])
   shipment  Shipment? @relation(fields: [shipmentId], references: [id])
   review    Review?
+  dispute   OrderDispute?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -745,6 +748,47 @@ model Review {
   @@index([sellerId, createdAt])
   @@index([buyerId])
   @@map("reviews")
+}
+
+// Buyer-initiated dispute on a delivered or in-flight order. Lives
+// alongside the order until an admin resolves it. One dispute per
+// order; re-opening goes through admin.
+enum OrderDisputeReason {
+  not_received
+  not_as_described
+  damaged
+  wrong_item
+  refund_requested
+  other
+}
+
+enum OrderDisputeStatus {
+  open
+  under_review
+  resolved
+  closed_no_action
+}
+
+model OrderDispute {
+  id            String              @id @default(uuid()) @db.Uuid
+  orderId       String              @unique @map("order_id") @db.Uuid
+  openedById    String              @map("opened_by_id") @db.Uuid
+  reason        OrderDisputeReason
+  body          String              @db.Text
+  status        OrderDisputeStatus  @default(open)
+  resolvedById  String?             @map("resolved_by_id") @db.Uuid
+  resolution    String?             @db.Text
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  resolvedAt    DateTime?           @map("resolved_at")
+
+  order        Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  openedBy     User  @relation("DisputeOpened", fields: [openedById], references: [id])
+  resolvedBy   User? @relation("DisputeResolver", fields: [resolvedById], references: [id])
+
+  @@index([status, createdAt])
+  @@index([openedById])
+  @@map("order_disputes")
 }
 
 // Buyer-saved search. Daily cron walks each row, finds new lots

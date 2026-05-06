@@ -4,6 +4,7 @@ import { requireOnboardedUser } from "@/lib/onboarding";
 import OrderActions from "./OrderActions";
 import ReviewForm from "./ReviewForm";
 import MessageSellerAboutOrderButton from "./MessageSellerAboutOrderButton";
+import DisputeForm from "./DisputeForm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,15 @@ export default async function OrderPage({
       },
       seller: { select: { id: true, handle: true, name: true } },
       review: { select: { rating: true, body: true } },
+      dispute: {
+        select: {
+          id: true,
+          reason: true,
+          status: true,
+          body: true,
+          createdAt: true,
+        },
+      },
     },
   });
   if (!order) notFound();
@@ -141,6 +151,24 @@ export default async function OrderPage({
       {(order.deliveredAt || order.status === "delivered") && (
         <div className="mt-8">
           <ReviewForm orderId={order.id} initial={order.review} />
+        </div>
+      )}
+
+      {/* Disputes are allowed any time after the buyer paid — don't gate
+          on delivered, since 'never showed up' is a real complaint. */}
+      {["paid", "shipped", "delivered", "refunded"].includes(order.status) && (
+        <div className="mt-8">
+          <DisputeForm
+            orderId={order.id}
+            existing={
+              order.dispute
+                ? {
+                    ...order.dispute,
+                    createdAt: order.dispute.createdAt.toISOString(),
+                  }
+                : null
+            }
+          />
         </div>
       )}
 

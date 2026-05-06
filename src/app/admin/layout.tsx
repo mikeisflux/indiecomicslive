@@ -10,6 +10,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/shows", label: "Shows" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/chargebacks", label: "Chargebacks" },
   { href: "/admin/ip-blocks", label: "IP blocklist" },
   { href: "/admin/bot-block", label: "Bot blocker" },
