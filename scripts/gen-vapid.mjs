@@ -18,11 +18,8 @@ const pubB64u = rawKey.toString("base64url");
 
 const pkcs8 = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
 
-console.log("# Add to .env.local — DO NOT COMMIT --");
+console.log("# Append to .env.local — DO NOT COMMIT --");
 console.log(`VAPID_PUBLIC_KEY=${pubB64u}`);
 console.log(`NEXT_PUBLIC_VAPID_PUBLIC_KEY=${pubB64u}`);
-console.log("VAPID_PRIVATE_KEY=\"$(cat <<'PEM'");
-console.log(pkcs8.trim());
-console.log("PEM");
-console.log(")\"");
 console.log("VAPID_SUBJECT=mailto:hello@indiecomicslive.com");
+console.log(`VAPID_PRIVATE_KEY="${pkcs8.trim()}"`);
