@@ -547,12 +547,35 @@ model Lot {
   currentBidder User?   @relation("HighBidder", fields: [currentBidUserId], references: [id])
   bids          Bid[]
   orders        Order[]
+  // Gallery: zero or more additional images on top of the cover
+  // (Lot.imageUrl is still the lot's primary image — surfaced on
+  // homepage cards / live overlay / order thumbnail). LotImage rows
+  // power the gallery view on /shop, /orders/[id], and any future
+  // lot detail page.
+  images        LotImage[]
 
   @@index([showId])
   @@index([sellerId, status])
   @@index([kind, status])
   @@index([status])
   @@map("lots")
+}
+
+// Gallery image attached to a Lot. The Lot's primary image lives on
+// Lot.imageUrl (kept for back-compat + cheap renders); this table
+// stores the full image set so sellers can post front, back, and
+// condition shots.
+model LotImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@index([lotId, position])
+  @@map("lot_images")
 }
 
 model Bid {

@@ -16,6 +16,11 @@ const Body = z
     title: z.string().min(1).max(200),
     description: z.string().max(2000).optional(),
     imageUrl: z.string().url().optional(),
+    // Optional gallery: additional images shown on the lot card /
+    // order page in the order provided. The first imageUrl from
+    // imageUrls is also written to Lot.imageUrl when imageUrl
+    // isn't explicitly set, so the cover stays in sync.
+    imageUrls: z.array(z.string().url()).max(12).optional(),
     startingBidCents: z.number().int().nonnegative().optional(),
     minIncrementCents: z.number().int().positive().optional(),
     softCloseSeconds: z.number().int().min(3).max(60).optional(),
@@ -89,6 +94,13 @@ export async function POST(req: Request) {
     nextPos = (max._max.position ?? 0) + 1;
   }
 
+  // Reconcile the cover image: if the form sent a list of imageUrls
+  // and no explicit cover, use the first one. The full list (cover
+  // included) is then persisted as LotImage rows for the gallery.
+  const galleryUrls = (parsed.data.imageUrls ?? []).slice(0, 12);
+  const coverUrl =
+    parsed.data.imageUrl ?? galleryUrls[0] ?? undefined;
+
   const lot = await prisma.lot.create({
     data: {
       showId: parsed.data.showId ?? null,
@@ -97,7 +109,7 @@ export async function POST(req: Request) {
       kind: parsed.data.kind,
       title: parsed.data.title,
       description: parsed.data.description,
-      imageUrl: parsed.data.imageUrl,
+      imageUrl: coverUrl,
       startingBidCents: parsed.data.startingBidCents ?? 0,
       minIncrementCents: parsed.data.minIncrementCents ?? 100,
       softCloseSeconds: parsed.data.softCloseSeconds ?? 10,
@@ -115,6 +127,18 @@ export async function POST(req: Request) {
           : null,
     },
   });
+
+  // Persist the gallery alongside the cover image so /shop, /orders,
+  // and any future lot-detail page can render the full set.
+  if (galleryUrls.length > 0) {
+    await prisma.lotImage.createMany({
+      data: galleryUrls.map((url, i) => ({
+        lotId: lot.id,
+        url,
+        position: i,
+      })),
+    });
+  }
 
   return NextResponse.json({ lot });
 }

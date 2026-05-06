@@ -28,6 +28,10 @@ export default async function OrderPage({
           kind: true,
           mysteryContentsHtml: true,
           mysteryItemCount: true,
+          images: {
+            orderBy: { position: "asc" },
+            select: { id: true, url: true },
+          },
         },
       },
       seller: { select: { handle: true, name: true } },
@@ -48,11 +52,32 @@ export default async function OrderPage({
       </p>
 
       {order.lot.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={order.lot.imageUrl}
           alt={order.lot.title}
-          className="mb-6 w-full rounded-2xl object-cover"
+          className="mb-3 w-full rounded-2xl object-cover"
         />
+      )}
+      {order.lot.images.length > 1 && (
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+          {order.lot.images.map((img) => (
+            <a
+              key={img.id}
+              href={img.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.url}
+                alt=""
+                className="h-20 w-20 rounded-lg border border-white/10 object-cover hover:border-white/30"
+              />
+            </a>
+          ))}
+        </div>
       )}
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">

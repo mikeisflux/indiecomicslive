@@ -62,6 +62,9 @@ export default async function ShopPage({
       status: { not: "unsold" },
     },
     orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { images: true } },
+    },
   });
 
   return (
@@ -124,6 +127,11 @@ export default async function ShopPage({
                     {l.kind === "mystery" && (
                       <span className="absolute left-3 top-3 rounded-full bg-purple-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple-200">
                         Mystery
+                      </span>
+                    )}
+                    {l._count.images > 1 && (
+                      <span className="absolute right-3 top-3 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-bold text-paper">
+                        +{l._count.images - 1} more
                       </span>
                     )}
                   </div>

@@ -98,7 +98,7 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
   const [shippingCost, setShippingCost] = useState("0.00");
   const [mysteryContents, setMysteryContents] = useState("");
   const [mysteryItemCount, setMysteryItemCount] = useState("3");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -122,25 +122,35 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
     return put.ok ? publicUrl : null;
   }
 
+  async function uploadAll(files: File[]): Promise<string[]> {
+    const urls: string[] = [];
+    for (const f of files) {
+      const u = await uploadImage(f);
+      if (!u) return urls;
+      urls.push(u);
+    }
+    return urls;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    let imageUrl: string | undefined;
-    if (imageFile) {
-      const url = await uploadImage(imageFile);
-      if (!url) {
+    let imageUrls: string[] = [];
+    if (imageFiles.length > 0) {
+      imageUrls = await uploadAll(imageFiles);
+      if (imageUrls.length === 0) {
         setErr("Image upload failed");
         setBusy(false);
         return;
       }
-      imageUrl = url;
     }
     const body: Record<string, unknown> = {
       kind,
       title,
       description: description || undefined,
-      imageUrl,
+      imageUrl: imageUrls[0],
+      imageUrls,
       buyNowCents: Math.round(Number(price) * 100),
       inventoryCount: Math.max(1, Math.round(Number(inventory))),
       shippingCostCents: Math.max(0, Math.round(Number(shippingCost) * 100)),
@@ -173,7 +183,7 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
     });
     setTitle("");
     setDescription("");
-    setImageFile(null);
+    setImageFiles([]);
   }
 
   const inp =
@@ -291,13 +301,22 @@ function CreateForm({ onCreated }: { onCreated: (lot: ShopLot) => void }) {
         />
       </label>
       <label className="block space-y-1 text-xs text-paper/60">
-        Cover image
+        Images (first becomes the cover; up to 12)
         <input
           type="file"
           accept="image/*"
-          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+          multiple
+          onChange={(e) =>
+            setImageFiles(Array.from(e.target.files ?? []).slice(0, 12))
+          }
           className="block w-full text-xs"
         />
+        {imageFiles.length > 0 && (
+          <p className="text-[11px] text-paper/50">
+            {imageFiles.length} image{imageFiles.length === 1 ? "" : "s"}{" "}
+            selected
+          </p>
+        )}
       </label>
       {err && <p className="text-xs text-accent">{err}</p>}
       <button

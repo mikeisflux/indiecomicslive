@@ -237,7 +237,7 @@ function CreateLotForm({
   const [buyNow, setBuyNow] = useState("10.00");
   const [inventory, setInventory] = useState("1");
   const [shippingCost, setShippingCost] = useState("0.00");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -268,23 +268,33 @@ function CreateLotForm({
     return publicUrl;
   }
 
+  async function uploadAll(files: File[]): Promise<string[]> {
+    const urls: string[] = [];
+    for (const f of files) {
+      const u = await uploadImage(f);
+      if (!u) return urls; // bail on first failure; setError already set
+      urls.push(u);
+    }
+    return urls;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      let imageUrl: string | undefined;
-      if (imageFile) {
-        const url = await uploadImage(imageFile);
-        if (!url) return;
-        imageUrl = url;
+      let imageUrls: string[] = [];
+      if (imageFiles.length > 0) {
+        imageUrls = await uploadAll(imageFiles);
+        if (imageUrls.length === 0) return; // upload failure
       }
 
       const body: Record<string, unknown> = {
         showId,
         kind,
         title,
-        imageUrl,
+        imageUrl: imageUrls[0],
+        imageUrls,
         shippingCostCents: Math.max(0, Math.round(Number(shippingCost) * 100)),
       };
       if (kind === "auction") {
@@ -313,7 +323,7 @@ function CreateLotForm({
         imageUrl: data.lot.imageUrl ?? null,
       });
       setTitle("");
-      setImageFile(null);
+      setImageFiles([]);
     } finally {
       setSubmitting(false);
     }
@@ -422,13 +432,24 @@ function CreateLotForm({
         />
       </label>
       <label className="block space-y-1 text-xs text-paper/60">
-        Cover image
+        Images (first one becomes the cover; up to 12)
         <input
           type="file"
           accept="image/*"
-          onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+          multiple
+          onChange={(e) =>
+            setImageFiles(
+              Array.from(e.target.files ?? []).slice(0, 12),
+            )
+          }
           className="block w-full text-xs"
         />
+        {imageFiles.length > 0 && (
+          <p className="text-[11px] text-paper/50">
+            {imageFiles.length} image{imageFiles.length === 1 ? "" : "s"}{" "}
+            selected
+          </p>
+        )}
       </label>
       {error && <p className="text-xs text-accent">{error}</p>}
       <button
