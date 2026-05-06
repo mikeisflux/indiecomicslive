@@ -535,7 +535,13 @@ model Order {
   refundedAt              DateTime?         @map("refunded_at")
   nmiRefundId             String?           @map("nmi_refund_id")
   shippingAddress         String?           @map("shipping_address")
-  // Shipping (ShipStation)
+  // Shipping (ShipStation). Tracking can live either directly on the
+  // Order (single-item shipment) OR on a Shipment grouping multiple
+  // orders from the same buyer (Whatnot-style bundle). When
+  // shipmentId is set the per-order shipping fields below are
+  // redundant copies kept in sync with the Shipment row for cheap
+  // queries.
+  shipmentId              String?           @map("shipment_id") @db.Uuid
   shipstationShipmentId   String?           @map("shipstation_shipment_id")
   shippingCarrier         String?           @map("shipping_carrier")
   shippingService         String?           @map("shipping_service")
@@ -548,15 +554,43 @@ model Order {
   payoutId                String?           @map("payout_id") @db.Uuid
   createdAt               DateTime          @default(now()) @map("created_at")
 
-  lot     Lot     @relation(fields: [lotId], references: [id])
-  buyer   User    @relation("Buyer", fields: [buyerId], references: [id])
-  seller  User    @relation("Seller", fields: [sellerId], references: [id])
-  payout  Payout? @relation(fields: [payoutId], references: [id])
+  lot       Lot       @relation(fields: [lotId], references: [id])
+  buyer     User      @relation("Buyer", fields: [buyerId], references: [id])
+  seller    User      @relation("Seller", fields: [sellerId], references: [id])
+  payout    Payout?   @relation(fields: [payoutId], references: [id])
+  shipment  Shipment? @relation(fields: [shipmentId], references: [id])
 
   @@index([buyerId])
   @@index([sellerId])
   @@index([sellerId, deliveredAt, payoutId])
+  @@index([shipmentId])
   @@map("orders")
+}
+
+// A Shipment groups one or more Orders from the same buyer into a
+// single shipping label (Whatnot-style "bundle wins"). When a seller
+// finalizes a bundle and buys a label, the resulting tracking +
+// label PDF live on the Shipment, and the per-Order tracking fields
+// are kept in sync as denormalized copies.
+model Shipment {
+  id                      String    @id @default(uuid()) @db.Uuid
+  sellerId                String    @map("seller_id") @db.Uuid
+  buyerId                 String    @map("buyer_id") @db.Uuid
+  shipstationShipmentId   String?   @map("shipstation_shipment_id")
+  shippingCarrier         String?   @map("shipping_carrier")
+  shippingService         String?   @map("shipping_service")
+  shippingCostCents       Int?      @map("shipping_cost_cents")
+  labelR2Key              String?   @map("label_r2_key")
+  trackingNumber          String?   @map("tracking_number")
+  shippedAt               DateTime? @map("shipped_at")
+  deliveredAt             DateTime? @map("delivered_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@index([sellerId, buyerId])
+  @@index([trackingNumber])
+  @@map("shipments")
 }
 
 // One row per seller per weekly batch (Thursday). Holds the aggregated
