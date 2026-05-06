@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import OrderActions from "./OrderActions";
 import ReviewForm from "./ReviewForm";
+import MessageSellerAboutOrderButton from "./MessageSellerAboutOrderButton";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function OrderPage({
           },
         },
       },
-      seller: { select: { handle: true, name: true } },
+      seller: { select: { id: true, handle: true, name: true } },
       review: { select: { rating: true, body: true } },
     },
   });
@@ -119,8 +120,13 @@ export default async function OrderPage({
         )}
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         <OrderActions orderId={order.id} status={order.status} />
+        <MessageSellerAboutOrderButton
+          recipientId={order.seller.id}
+          orderId={order.id}
+          lotTitle={order.lot.title}
+        />
       </div>
 
       {order.lot.description && (
