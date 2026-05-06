@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { searchLots } from "@/lib/search";
 import { sendEmailRich } from "@/lib/email-rich";
+import { pushToUser } from "@/lib/push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,6 +103,14 @@ export async function POST(req: Request) {
       });
       if (send.ok) emailed += 1;
       totalMatches += hits.length;
+
+      // Web push fan-out — same payload as the email digest.
+      pushToUser(s.user.id, {
+        kind: "saved_search",
+        title: subject,
+        body: hits.map((h) => h.title).slice(0, 3).join(" · "),
+        url: `/search?q=${encodeURIComponent(s.query)}`,
+      }).catch(() => {});
     }
 
     await prisma.savedSearch.update({

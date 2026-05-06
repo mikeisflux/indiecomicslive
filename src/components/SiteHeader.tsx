@@ -5,6 +5,7 @@ import AccountMenu, {
   type RecentOrder,
   type RecentShow,
 } from "@/components/AccountMenu";
+import NotificationBell from "@/components/NotificationBell";
 
 // Top nav for public pages. Reads the session server-side so the
 // signed-in/out state is correct on every render. Logs the resolved
@@ -157,6 +158,7 @@ export default async function SiteHeader() {
                 Admin
               </Link>
             )}
+            <NotificationBell />
             <AccountMenu
               user={{
                 email: userRow.email,

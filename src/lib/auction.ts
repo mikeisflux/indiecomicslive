@@ -4,8 +4,14 @@ export type BidResult =
   | {
       ok: true;
       lotId: string;
+      lotTitle: string;
       newCurrentBidCents: number;
       currentBidUserId: string;
+      // The user who held the high bid before this one — null on the
+      // opening bid. Used to fire an outbid push notification.
+      previousHighBidderId: string | null;
+      previousBidCents: number | null;
+      showId: string | null;
       endsAt: Date;
       bidCount: number;
     }
@@ -16,6 +22,8 @@ export type BidResult =
 // $queryRaw for the lock and the typed client for the rest.
 type LockedLot = {
   id: string;
+  title: string;
+  show_id: string | null;
   status: "queued" | "live" | "sold" | "unsold";
   starting_bid_cents: number;
   min_increment_cents: number;
@@ -33,9 +41,9 @@ export async function placeBid(opts: {
 }): Promise<BidResult> {
   return await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<LockedLot[]>`
-      SELECT id, status, starting_bid_cents, min_increment_cents,
-             soft_close_seconds, current_bid_cents, current_bid_user_id,
-             ends_at, bid_count
+      SELECT id, title, show_id, status, starting_bid_cents,
+             min_increment_cents, soft_close_seconds, current_bid_cents,
+             current_bid_user_id, ends_at, bid_count
       FROM lots WHERE id = ${opts.lotId}::uuid FOR UPDATE
     `;
     const lot = rows[0];
@@ -99,8 +107,12 @@ export async function placeBid(opts: {
     return {
       ok: true as const,
       lotId: opts.lotId,
+      lotTitle: lot.title,
       newCurrentBidCents: opts.amountCents,
       currentBidUserId: opts.userId,
+      previousHighBidderId: lot.current_bid_user_id,
+      previousBidCents: lot.current_bid_cents,
+      showId: lot.show_id,
       endsAt: newEndsAt,
       bidCount: lot.bid_count + 1,
     };

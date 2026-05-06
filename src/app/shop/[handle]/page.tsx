@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import SiteHeader from "@/components/SiteHeader";
 import WatchButton from "@/components/WatchButton";
+import FollowButton from "@/components/FollowButton";
 import BuyNowButton from "./BuyNowButton";
 import MessageSellerButton from "./MessageSellerButton";
 
@@ -92,9 +93,10 @@ export default async function ShopPage({
 
   // Pre-resolve which of these lots the current viewer is already
   // watching so the heart icons render in the right state without a
-  // client-side round-trip.
+  // client-side round-trip. Also pre-resolve follow state + count.
   const session = await auth();
   let watchedLotIds = new Set<string>();
+  let alreadyFollowing = false;
   if (session?.user?.id && lots.length > 0) {
     const rows = await prisma.watchedLot.findMany({
       where: {
@@ -105,6 +107,21 @@ export default async function ShopPage({
     });
     watchedLotIds = new Set(rows.map((r) => r.lotId));
   }
+  if (session?.user?.id && session.user.id !== seller.id) {
+    const f = await prisma.follow.findUnique({
+      where: {
+        followerId_sellerId: {
+          followerId: session.user.id,
+          sellerId: seller.id,
+        },
+      },
+      select: { followerId: true },
+    });
+    alreadyFollowing = !!f;
+  }
+  const followerCount = await prisma.follow.count({
+    where: { sellerId: seller.id },
+  });
 
   return (
     <>
@@ -126,14 +143,32 @@ export default async function ShopPage({
             <h1 className="text-2xl font-bold">
               {seller.name ?? `@${seller.handle}`}
             </h1>
-            <p className="text-sm text-paper/60">@{seller.handle}</p>
+            <p className="text-sm text-paper/60">
+              @{seller.handle}
+              {followerCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-paper">
+                    {followerCount.toLocaleString()}
+                  </span>{" "}
+                  follower{followerCount === 1 ? "" : "s"}
+                </>
+              )}
+            </p>
             {seller.bio && (
               <p className="mt-2 max-w-2xl text-sm text-paper/80">
                 {seller.bio}
               </p>
             )}
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            {session?.user?.id !== seller.id && (
+              <FollowButton
+                sellerId={seller.id}
+                initial={alreadyFollowing}
+                signedIn={!!session?.user?.id}
+              />
+            )}
             <MessageSellerButton recipientId={seller.id} />
           </div>
         </header>

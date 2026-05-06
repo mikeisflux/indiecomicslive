@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { loadAntMediaConfig, verifyAntMediaWebhook } from "@/lib/antmedia";
 import { isIPBlocked, recordSuspiciousActivity } from "@/lib/bot-blocker";
 import { getClientIP, getUserAgent } from "@/lib/client-ip";
+import { pushToUser } from "@/lib/push";
 
 // Ant Media stream webhook. Configure via "Stream Webhook" in the
 // admin panel. Body shape (typical):
@@ -55,10 +56,47 @@ export async function POST(req: Request) {
   }
 
   if (event.action === "liveStreamStarted") {
-    await prisma.show.updateMany({
+    const show = await prisma.show.findFirst({
       where: { streamId: event.id },
-      data: { status: "live", startedAt: new Date() },
+      select: {
+        id: true,
+        title: true,
+        sellerId: true,
+        seller: { select: { name: true, handle: true } },
+      },
     });
+    if (show) {
+      await prisma.show.update({
+        where: { id: show.id },
+        data: { status: "live", startedAt: new Date() },
+      });
+      // Notify everyone who follows this seller, plus anyone who
+      // explicitly watched this scheduled show.
+      const [followers, watchers] = await Promise.all([
+        prisma.follow.findMany({
+          where: { sellerId: show.sellerId },
+          select: { followerId: true },
+        }),
+        prisma.watchedShow.findMany({
+          where: { showId: show.id },
+          select: { userId: true },
+        }),
+      ]);
+      const recipients = new Set<string>([
+        ...followers.map((f) => f.followerId),
+        ...watchers.map((w) => w.userId),
+      ]);
+      const sellerName =
+        show.seller.name ?? `@${show.seller.handle ?? "indiecomicslive"}`;
+      for (const userId of recipients) {
+        pushToUser(userId, {
+          kind: "show_live",
+          title: `${sellerName} is live`,
+          body: show.title,
+          url: `/s/${show.id}`,
+        }).catch(() => {});
+      }
+    }
   } else if (event.action === "liveStreamEnded") {
     await prisma.show.updateMany({
       where: { streamId: event.id },

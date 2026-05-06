@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { placeBid, closeLot } from "@/lib/auction";
 import { chargeOrder } from "@/lib/payments";
+import { pushToUser } from "@/lib/push";
 import {
   cleanupExpiredData,
   isIPBlocked,
@@ -234,6 +235,21 @@ wss.on("connection", async (ws, req) => {
         endsAt: result.endsAt,
         bidCount: result.bidCount,
       });
+
+      // Outbid notification — fire-and-forget push to whoever just
+      // got bumped out of the top spot.
+      if (
+        result.previousHighBidderId &&
+        result.previousHighBidderId !== result.currentBidUserId
+      ) {
+        const dollars = (result.newCurrentBidCents / 100).toFixed(2);
+        pushToUser(result.previousHighBidderId, {
+          kind: "outbid",
+          title: `You've been outbid — ${result.lotTitle}`,
+          body: `New high bid is $${dollars}. Tap to bid back.`,
+          url: result.showId ? `/s/${result.showId}` : "/",
+        }).catch(() => {});
+      }
       return;
     }
 

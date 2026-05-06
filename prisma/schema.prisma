@@ -241,6 +241,8 @@ model User {
   disputesOpened    OrderDispute[]      @relation("DisputeOpened")
   disputesResolved  OrderDispute[]      @relation("DisputeResolver")
   passwordResetTokens PasswordResetToken[]
+  pushSubscriptions PushSubscription[]
+  notifications     Notification[]
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]
   followingSellers  Follow[]            @relation("Follower")
@@ -816,6 +818,46 @@ model OrderDispute {
   @@index([status, createdAt])
   @@index([openedById])
   @@map("order_disputes")
+}
+
+// Web Push subscription. One row per device — a single user might
+// have several (phone, laptop, work computer). The endpoint is unique
+// across all users; if a user signs in on a device a second user has
+// already subscribed from, we move the row to the new owner.
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  authKey   String   @map("auth_key")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// In-app notification. Written when a push is dispatched; the service
+// worker fetches /api/push/latest on the push event to populate the
+// system notification body, and the bell icon in the nav reads from
+// here to show unread counts.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  kind      String
+  title     String
+  body      String
+  url       String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
 }
 
 // Buyer-saved search. Daily cron walks each row, finds new lots
