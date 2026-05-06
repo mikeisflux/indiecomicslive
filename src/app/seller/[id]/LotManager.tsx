@@ -231,8 +231,11 @@ function CreateLotForm({
   onCreated: (lot: Lot) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<"auction" | "buy_now" | "mystery">("auction");
   const [startingBid, setStartingBid] = useState("1.00");
   const [minIncrement, setMinIncrement] = useState("1.00");
+  const [buyNow, setBuyNow] = useState("10.00");
+  const [inventory, setInventory] = useState("1");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -276,16 +279,25 @@ function CreateLotForm({
         imageUrl = url;
       }
 
+      const body: Record<string, unknown> = {
+        showId,
+        kind,
+        title,
+        imageUrl,
+      };
+      if (kind === "auction") {
+        body.startingBidCents = Math.round(Number(startingBid) * 100);
+        body.minIncrementCents = Math.round(Number(minIncrement) * 100);
+      } else {
+        body.buyNowCents = Math.round(Number(buyNow) * 100);
+        body.inventoryCount = Math.max(1, Math.round(Number(inventory)));
+        // satisfy zod (startingBidCents has a default of 0)
+        body.startingBidCents = 0;
+      }
       const r = await fetch("/api/lots", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          showId,
-          title,
-          imageUrl,
-          startingBidCents: Math.round(Number(startingBid) * 100),
-          minIncrementCents: Math.round(Number(minIncrement) * 100),
-        }),
+        body: JSON.stringify(body),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -320,30 +332,82 @@ function CreateLotForm({
         required
         className={inputClass}
       />
-      <div className="grid grid-cols-2 gap-3">
-        <label className="space-y-1 text-xs text-paper/60">
-          Starting bid ($)
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={startingBid}
-            onChange={(e) => setStartingBid(e.target.value)}
-            className={inputClass}
-          />
-        </label>
-        <label className="space-y-1 text-xs text-paper/60">
-          Min increment ($)
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={minIncrement}
-            onChange={(e) => setMinIncrement(e.target.value)}
-            className={inputClass}
-          />
-        </label>
+      <div>
+        <label className="mb-1 block text-xs text-paper/60">Type</label>
+        <div className="flex gap-2 text-xs">
+          {(
+            [
+              { id: "auction", label: "Auction" },
+              { id: "buy_now", label: "Buy now" },
+              { id: "mystery", label: "Mystery" },
+            ] as const
+          ).map((k) => (
+            <button
+              key={k.id}
+              type="button"
+              onClick={() => setKind(k.id)}
+              className={`rounded-full px-3 py-1.5 ${
+                kind === k.id
+                  ? "bg-accent text-white"
+                  : "border border-white/10 text-paper/70"
+              }`}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
       </div>
+      {kind === "auction" ? (
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-1 text-xs text-paper/60">
+            Starting bid ($)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={startingBid}
+              onChange={(e) => setStartingBid(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="space-y-1 text-xs text-paper/60">
+            Min increment ($)
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={minIncrement}
+              onChange={(e) => setMinIncrement(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-1 text-xs text-paper/60">
+            Price ($)
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={buyNow}
+              onChange={(e) => setBuyNow(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="space-y-1 text-xs text-paper/60">
+            Inventory
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={inventory}
+              onChange={(e) => setInventory(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      )}
       <label className="block space-y-1 text-xs text-paper/60">
         Cover image
         <input

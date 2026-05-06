@@ -34,6 +34,12 @@ enum LotStatus {
   unsold
 }
 
+enum LotKind {
+  auction      // Standard timed-bid auction lot.
+  buy_now      // Fixed price; first buyer wins.
+  mystery      // Buy-now flow but contents are hidden until purchase.
+}
+
 enum OrderStatus {
   pending_payment
   payment_failed
@@ -177,6 +183,7 @@ model User {
   bids              Bid[]
   ordersAsBuyer     Order[]             @relation("Buyer")
   ordersAsSeller    Order[]             @relation("Seller")
+  lotsAsSeller      Lot[]               @relation("LotSeller")
   payouts           Payout[]            @relation("PayoutSeller")
   passwordResetTokens PasswordResetToken[]
   chatMessages      ChatMessage[]
@@ -447,14 +454,26 @@ model Show {
 
 model Lot {
   id                String    @id @default(uuid()) @db.Uuid
-  showId            String    @map("show_id") @db.Uuid
+  // Nullable so lots can live in the 24/7 seller shop (no show
+  // attached). When showId is null the lot is available for Buy-Now
+  // purchase from the seller's profile any time.
+  showId            String?   @map("show_id") @db.Uuid
+  // Sellers may own 24/7-shop lots even when no show is attached;
+  // sellerId is denormalized here so a single index works for both
+  // shop browse and admin lookups.
+  sellerId          String?   @map("seller_id") @db.Uuid
   position          Int
+  kind              LotKind   @default(auction)
   title             String
   description       String?
   imageUrl          String?   @map("image_url")
+  // Auction lot fields
   startingBidCents  Int       @map("starting_bid_cents")
   minIncrementCents Int       @default(100) @map("min_increment_cents")
   softCloseSeconds  Int       @default(10) @map("soft_close_seconds")
+  // Buy-Now / mystery lot fields
+  buyNowCents       Int?      @map("buy_now_cents")
+  inventoryCount    Int       @default(1) @map("inventory_count")
   status            LotStatus @default(queued)
   currentBidCents   Int?      @map("current_bid_cents")
   currentBidUserId  String?   @map("current_bid_user_id") @db.Uuid
@@ -464,12 +483,15 @@ model Lot {
   soldAt            DateTime? @map("sold_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
-  show          Show    @relation(fields: [showId], references: [id], onDelete: Cascade)
+  show          Show?   @relation(fields: [showId], references: [id], onDelete: Cascade)
+  seller        User?   @relation("LotSeller", fields: [sellerId], references: [id])
   currentBidder User?   @relation("HighBidder", fields: [currentBidUserId], references: [id])
   bids          Bid[]
   orders        Order[]
 
   @@index([showId])
+  @@index([sellerId, status])
+  @@index([kind, status])
   @@index([status])
   @@map("lots")
 }

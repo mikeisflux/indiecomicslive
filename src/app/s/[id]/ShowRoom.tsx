@@ -18,6 +18,9 @@ type Lot = {
   bidCount: number;
   endsAt: Date | string | null;
   status: string;
+  kind?: "auction" | "buy_now" | "mystery";
+  buyNowCents?: number | null;
+  inventoryCount?: number;
 };
 
 type Props = {

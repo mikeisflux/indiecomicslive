@@ -12,6 +12,9 @@ type Lot = {
   bidCount: number;
   endsAt: Date | string | null;
   status: string;
+  kind?: "auction" | "buy_now" | "mystery";
+  buyNowCents?: number | null;
+  inventoryCount?: number;
 };
 
 // Overlays drawn on top of the AntMediaPlayer:
@@ -85,8 +88,8 @@ export default function StreamOverlay({
       )}
 
       {showPin && (
-        <div className="pointer-events-none absolute right-3 top-3 max-w-[60%] sm:max-w-xs">
-          <div className="rounded-2xl border border-white/15 bg-black/80 p-3 backdrop-blur">
+        <div className="absolute right-3 top-3 max-w-[60%] sm:max-w-xs">
+          <div className="pointer-events-auto rounded-2xl border border-white/15 bg-black/80 p-3 backdrop-blur">
             <p className="text-[10px] font-bold uppercase tracking-widest text-paper/70">
               Now selling
             </p>
@@ -106,14 +109,55 @@ export default function StreamOverlay({
                   {pinnedLot.title}
                 </p>
                 <p className="text-xs text-paper/60">
-                  Start ${(pinnedLot.startingBidCents / 100).toFixed(2)}
+                  {pinnedLot.kind === "buy_now" || pinnedLot.kind === "mystery"
+                    ? `$${((pinnedLot.buyNowCents ?? 0) / 100).toFixed(2)}`
+                    : `Start $${(pinnedLot.startingBidCents / 100).toFixed(2)}`}
                 </p>
               </div>
             </div>
+            {(pinnedLot.kind === "buy_now" || pinnedLot.kind === "mystery") && (
+              <BuyNowButton lotId={pinnedLot.id} />
+            )}
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function BuyNowButton({ lotId }: { lotId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function buy() {
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch(`/api/lots/${lotId}/buy`, { method: "POST" });
+    const data = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (r.status === 401) {
+      window.location.href = `/sign-in?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    if (!r.ok) {
+      setMsg(data.message || data.error || "Could not complete purchase");
+      return;
+    }
+    window.location.href = `/orders/${data.orderId}`;
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={buy}
+        disabled={busy}
+        className="w-full rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+      >
+        {busy ? "Charging…" : "Buy now"}
+      </button>
+      {msg && <p className="mt-1 text-[10px] text-red-300">{msg}</p>}
+    </div>
   );
 }
 

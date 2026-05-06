@@ -21,6 +21,28 @@ export default async function SellerDashboard() {
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
       <h1 className="mb-6 text-2xl font-bold">Seller dashboard</h1>
 
+      <div className="mb-8 grid gap-2 sm:grid-cols-2">
+        <Link
+          href="/seller/shop"
+          className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm hover:bg-white/[0.04]"
+        >
+          <p className="font-semibold">24/7 Shop →</p>
+          <p className="mt-1 text-xs text-paper/60">
+            List Buy-Now and Mystery items that sell any time, no live show
+            needed.
+          </p>
+        </Link>
+        <Link
+          href="/seller/orders"
+          className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm hover:bg-white/[0.04]"
+        >
+          <p className="font-semibold">Orders →</p>
+          <p className="mt-1 text-xs text-paper/60">
+            Print labels, track shipments, see delivered orders awaiting payout.
+          </p>
+        </Link>
+      </div>
+
       <section className="mb-10 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-paper/60">
           New show
