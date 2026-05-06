@@ -155,12 +155,13 @@ export default async function SellerStatsPage({
       <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-5 text-sm text-paper/70">
         <p>
           <strong className="text-paper">Pending ship:</strong>{" "}
-          {dollars(stats.totals.pendingShipCents)} sitting in paid orders that
-          haven&rsquo;t been shipped yet.
+          {dollars(stats.totals.pendingShipCents)}
+          {" "}sitting in paid orders that haven&rsquo;t been shipped yet.
         </p>
         <p className="mt-1">
           <strong className="text-paper">Already paid out:</strong>{" "}
-          {dollars(stats.totals.paidOutCents)} settled in past Thursday batches.
+          {dollars(stats.totals.paidOutCents)}
+          {" "}settled in past Thursday batches.
         </p>
       </section>
     </main>
