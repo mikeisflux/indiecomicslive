@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import StreamOverlay from "./StreamOverlay";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -25,6 +26,7 @@ type Props = {
     title: string;
     status: string;
     coverImageUrl: string | null;
+    pinnedLotId: string | null;
   };
   seller: {
     handle: string | null;
@@ -32,6 +34,7 @@ type Props = {
     image: string | null;
   } | null;
   liveLot: Lot | null;
+  pinnedLot: Lot | null;
   queuedLots: Lot[];
 };
 
@@ -46,15 +49,25 @@ export default function ShowRoom({
   show,
   seller,
   liveLot: initialLot,
+  pinnedLot: initialPinnedLot,
   queuedLots,
 }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [lot, setLot] = useState<Lot | null>(initialLot);
+  const [pinnedLot, setPinnedLot] = useState<Lot | null>(initialPinnedLot);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [bidErr, setBidErr] = useState<string | null>(null);
   const userId = useFakeUserId();
+
+  // Resolve a pinned lotId from the WS to one of our cached lot rows.
+  function resolveLot(id: string | null): Lot | null {
+    if (!id) return null;
+    if (initialLot?.id === id) return initialLot;
+    if (initialPinnedLot?.id === id) return initialPinnedLot;
+    return queuedLots.find((q) => q.id === id) ?? null;
+  }
 
   useEffect(() => {
     if (!userId) return;
@@ -79,6 +92,8 @@ export default function ShowRoom({
           endsAt: msg.endsAt,
           bidCount: msg.bidCount,
         });
+      } else if (msg.type === "pin") {
+        setPinnedLot(resolveLot(msg.lotId));
       } else if (msg.type === "bid_rejected") {
         setBidErr(msg.reason);
         setTimeout(() => setBidErr(null), 2000);
@@ -125,6 +140,7 @@ export default function ShowRoom({
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
         <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+        <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
       </div>
 
       <BidBar lot={lot} onBid={placeBid} bidErr={bidErr} />

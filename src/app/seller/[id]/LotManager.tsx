@@ -17,13 +17,34 @@ type Lot = {
 type Props = {
   showId: string;
   initialLots: Lot[];
+  pinnedLotId?: string | null;
+  onPinChange?: (lotId: string | null) => void;
 };
 
-export default function LotManager({ showId, initialLots }: Props) {
+export default function LotManager({
+  showId,
+  initialLots,
+  pinnedLotId,
+  onPinChange,
+}: Props) {
   const [lots, setLots] = useState<Lot[]>(initialLots);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(30);
+  const [pinBusy, setPinBusy] = useState<string | null>(null);
+
+  async function togglePin(lotId: string) {
+    if (!onPinChange) return;
+    const next = pinnedLotId === lotId ? null : lotId;
+    setPinBusy(lotId);
+    const r = await fetch(`/api/seller/shows/${showId}/pin`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lotId: next }),
+    });
+    setPinBusy(null);
+    if (r.ok) onPinChange(next);
+  }
 
   async function startNext() {
     setError(null);
@@ -119,32 +140,61 @@ export default function LotManager({ showId, initialLots }: Props) {
           <p className="text-sm text-paper/40">No queued lots.</p>
         ) : (
           <ul className="divide-y divide-white/5">
-            {queued.map((l) => (
-              <li
-                key={l.id}
-                className="flex items-center gap-3 py-3 text-sm"
-              >
-                <span className="w-6 text-right text-xs text-paper/40">
-                  #{l.position}
-                </span>
-                {l.imageUrl ? (
-                  <img
-                    src={l.imageUrl}
-                    alt=""
-                    className="h-12 w-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="h-12 w-12 rounded-lg bg-white/5" />
-                )}
-                <div className="flex-1">
-                  <p className="font-medium">{l.title}</p>
-                  <p className="text-xs text-paper/60">
-                    Start ${(l.startingBidCents / 100).toFixed(2)} · +$
-                    {(l.minIncrementCents / 100).toFixed(2)} min
-                  </p>
-                </div>
-              </li>
-            ))}
+            {queued.map((l) => {
+              const isPinned = pinnedLotId === l.id;
+              return (
+                <li
+                  key={l.id}
+                  className="flex items-center gap-3 py-3 text-sm"
+                >
+                  <span className="w-6 text-right text-xs text-paper/40">
+                    #{l.position}
+                  </span>
+                  {l.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={l.imageUrl}
+                      alt=""
+                      className="h-12 w-12 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-white/5" />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium">
+                      {l.title}
+                      {isPinned && (
+                        <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-accent">
+                          Pinned
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-paper/60">
+                      Start ${(l.startingBidCents / 100).toFixed(2)} · +$
+                      {(l.minIncrementCents / 100).toFixed(2)} min
+                    </p>
+                  </div>
+                  {onPinChange && (
+                    <button
+                      type="button"
+                      onClick={() => togglePin(l.id)}
+                      disabled={pinBusy !== null}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs disabled:opacity-40 ${
+                        isPinned
+                          ? "border-accent/40 text-accent"
+                          : "border-white/10 text-paper/70 hover:border-white/20"
+                      }`}
+                    >
+                      {pinBusy === l.id
+                        ? "…"
+                        : isPinned
+                          ? "Unpin"
+                          : "Pin"}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

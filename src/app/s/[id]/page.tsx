@@ -65,6 +65,9 @@ export default async function ShowPage({
 
   const liveLot = show.lots.find((l) => l.status === "live") ?? null;
   const queuedLots = show.lots.filter((l) => l.status === "queued");
+  const pinnedLot = show.pinnedLotId
+    ? show.lots.find((l) => l.id === show.pinnedLotId) ?? null
+    : null;
 
   return (
     <ShowRoom
@@ -73,9 +76,11 @@ export default async function ShowPage({
         title: show.title,
         status: show.status,
         coverImageUrl: show.coverImageUrl,
+        pinnedLotId: show.pinnedLotId,
       }}
       seller={show.seller}
       liveLot={liveLot}
+      pinnedLot={pinnedLot}
       queuedLots={queuedLots}
     />
   );

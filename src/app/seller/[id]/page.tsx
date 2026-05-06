@@ -31,7 +31,11 @@ export default async function SellerShowPage({
       <h1 className="mb-1 text-2xl font-bold">{show.title}</h1>
       <p className="mb-6 text-xs text-paper/60">{show.status}</p>
       <SellerControls
-        show={{ id: show.id, status: show.status }}
+        show={{
+          id: show.id,
+          status: show.status,
+          pinnedLotId: show.pinnedLotId,
+        }}
         initialLots={show.lots.map((l) => ({
           id: l.id,
           position: l.position,

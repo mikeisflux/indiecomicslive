@@ -429,6 +429,11 @@ model Show {
   endedAt       DateTime?  @map("ended_at")
   streamId      String?    @map("stream_id")
   recordingUrl  String?    @map("recording_url")
+  // The "now selling" lot the seller wants spotlighted in the viewer.
+  // Distinct from Lot.status='live' (which is the auction-engine bid
+  // window). Sellers can pin a lot to highlight it before its auction
+  // starts (e.g. "Coming up next") or while a Buy-Now lot is open.
+  pinnedLotId   String?    @map("pinned_lot_id") @db.Uuid
   createdAt     DateTime   @default(now()) @map("created_at")
 
   seller       User          @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
