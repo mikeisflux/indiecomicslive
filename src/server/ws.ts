@@ -1,4 +1,5 @@
 import "./load-env";
+import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +13,64 @@ import {
 
 const port = Number(process.env.WS_PORT ?? 3001);
 
-const wss = new WebSocketServer({ port });
+// Plain HTTP server alongside WebSocketServer so server-side code in
+// the Next.js process (e.g. /api/seller/shows/[id]/pin) can POST a
+// message into a show room without holding a WebSocket itself.
+//   POST /internal/broadcast
+//     X-Broadcast-Token: <WS_INTERNAL_SECRET>
+//     { showId, msg } → broadcast(showId, msg)
+//   GET  /internal/health → { ok, rooms, clients }
+const httpServer = http.createServer((req, res) => {
+  if (req.method === "POST" && req.url === "/internal/broadcast") {
+    const expected = process.env.WS_INTERNAL_SECRET;
+    const provided = req.headers["x-broadcast-token"];
+    if (!expected || provided !== expected) {
+      res.statusCode = 401;
+      res.end();
+      return;
+    }
+    let body = "";
+    req.on("data", (chunk: Buffer) => {
+      body += chunk.toString();
+      if (body.length > 8192) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body) as { showId?: string; msg?: unknown };
+        if (
+          !parsed.showId ||
+          typeof parsed.showId !== "string" ||
+          parsed.msg == null
+        ) {
+          res.statusCode = 400;
+          res.end();
+          return;
+        }
+        broadcast(parsed.showId, parsed.msg);
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.statusCode = 400;
+        res.end();
+      }
+    });
+    return;
+  }
+  if (req.method === "GET" && req.url === "/internal/health") {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({ ok: true, rooms: rooms.size, clients: clients.size }),
+    );
+    return;
+  }
+  res.statusCode = 404;
+  res.end();
+});
+
+const wss = new WebSocketServer({ server: httpServer });
+httpServer.listen(port);
 
 function clientIP(req: import("http").IncomingMessage): string | null {
   const fwd = req.headers["x-forwarded-for"];

@@ -44,13 +44,19 @@ export default async function AdminOrderDetail({
         <div>
           <h1 className="text-2xl font-bold">{order.lot.title}</h1>
           <p className="text-sm text-paper/60">
-            From show:{" "}
-            <Link
-              href={`/admin/shows?status=all&q=${encodeURIComponent(order.lot.show.title)}`}
-              className="text-accent"
-            >
-              {order.lot.show.title}
-            </Link>
+            {order.lot.show ? (
+              <>
+                From show:{" "}
+                <Link
+                  href={`/admin/shows?status=all&q=${encodeURIComponent(order.lot.show.title)}`}
+                  className="text-accent"
+                >
+                  {order.lot.show.title}
+                </Link>
+              </>
+            ) : (
+              <>From 24/7 shop</>
+            )}
           </p>
         </div>
         <span className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-widest">

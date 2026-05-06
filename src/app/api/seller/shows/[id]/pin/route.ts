@@ -53,11 +53,25 @@ export async function PUT(
     data: { pinnedLotId: parsed.data.lotId },
   });
 
-  // The WS server (src/server/ws.ts) doesn't expose an internal HTTP
-  // broadcast endpoint yet, so the pin is DB-only — viewers will see
-  // it on their next reconnect / page reload. Real-time pin push is
-  // a follow-up: we'd add a small POST /internal/broadcast handler in
-  // ws.ts that calls the existing broadcast(showId, msg) helper.
+  // Best-effort: push a 'pin' message to live viewers via the WS
+  // server's internal HTTP endpoint. Failure is non-fatal — the
+  // pin write to Postgres is the durable source of truth, viewers
+  // will pick it up on next reconnect / refresh either way.
+  const wsPort = process.env.WS_PORT ?? "3001";
+  const wsSecret = process.env.WS_INTERNAL_SECRET;
+  if (wsSecret) {
+    fetch(`http://127.0.0.1:${wsPort}/internal/broadcast`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-broadcast-token": wsSecret,
+      },
+      body: JSON.stringify({
+        showId,
+        msg: { type: "pin", lotId: parsed.data.lotId },
+      }),
+    }).catch(() => null);
+  }
 
   return NextResponse.json({ ok: true, pinnedLotId: parsed.data.lotId });
 }

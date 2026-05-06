@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { sanitizeMysteryHtml } from "@/lib/html-sanitize";
 
 // Lot kinds:
 //   auction  — timed bidding (existing behavior). Requires showId.
@@ -95,7 +96,8 @@ export async function POST(req: Request) {
       inventoryCount: parsed.data.inventoryCount ?? 1,
       mysteryContentsHtml:
         parsed.data.kind === "mystery"
-          ? parsed.data.mysteryContentsHtml ?? null
+          ? sanitizeMysteryHtml(parsed.data.mysteryContentsHtml ?? null) ||
+            null
           : null,
       mysteryItemCount:
         parsed.data.kind === "mystery"

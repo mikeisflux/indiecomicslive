@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const DM_LIMIT = 30;
+const DM_WINDOW_MS = 60_000;
 
 // GET /api/messages/[id] — fetch a conversation with messages, mark
 // any unread (sent by the other party) as read.
@@ -67,9 +71,21 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
+  const meId = session.user.id;
+
+  const rl = checkRateLimit(`dm:${meId}`, DM_LIMIT, DM_WINDOW_MS);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: `You're sending messages too fast. Try again in ${Math.ceil((rl.retryMs ?? 1000) / 1000)}s.`,
+      },
+      { status: 429, headers: { "retry-after": String(Math.ceil((rl.retryMs ?? 1000) / 1000)) } },
+    );
+  }
+
   const convo = await prisma.conversation.findUnique({ where: { id } });
   if (!convo) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  const meId = session.user.id;
   if (convo.participantAId !== meId && convo.participantBId !== meId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

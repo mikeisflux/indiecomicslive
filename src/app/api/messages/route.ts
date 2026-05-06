@@ -3,8 +3,14 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findOrCreateConversation } from "@/lib/dm";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+// Cap a single user at ~30 sent messages per minute. Plenty for a
+// real conversation, throttles spam / scripted abuse.
+const DM_LIMIT = 30;
+const DM_WINDOW_MS = 60_000;
 
 const Body = z.object({
   recipientId: z.string().uuid(),
@@ -28,6 +34,17 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "self_message", message: "Can't message yourself." },
       { status: 400 },
+    );
+  }
+
+  const rl = checkRateLimit(`dm:${session.user.id}`, DM_LIMIT, DM_WINDOW_MS);
+  if (!rl.ok) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        message: `You're sending messages too fast. Try again in ${Math.ceil((rl.retryMs ?? 1000) / 1000)}s.`,
+      },
+      { status: 429, headers: { "retry-after": String(Math.ceil((rl.retryMs ?? 1000) / 1000)) } },
     );
   }
 
