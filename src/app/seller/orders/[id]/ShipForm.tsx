@@ -4,43 +4,36 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Rate {
-  serviceCode: string;
+  rateId: string;
+  provider: string;
   serviceName: string;
-  shipmentCost: number;
-  otherCost: number;
+  serviceToken: string;
+  amountCents: number;
+  currency: string;
+  estimatedDays: number | null;
 }
 
-const CARRIERS = [
-  { code: "stamps_com", label: "USPS (Stamps.com)" },
-  { code: "ups", label: "UPS" },
-  { code: "fedex", label: "FedEx" },
-  { code: "dhl_express", label: "DHL Express" },
-];
-
-const PACKAGES = [
-  { code: "package", label: "Package (your own box)" },
-  { code: "flat_rate_envelope", label: "Flat Rate Envelope" },
-  { code: "flat_rate_padded_envelope", label: "Flat Rate Padded Envelope" },
-  { code: "small_flat_rate_box", label: "Small Flat Rate Box" },
-  { code: "medium_flat_rate_box", label: "Medium Flat Rate Box" },
-  { code: "large_flat_rate_box", label: "Large Flat Rate Box" },
-];
-
+// Two-step flow against /api/seller/orders/[id]/rates and /buy-label
+// (Shippo under the hood). Seller fills weight + dimensions, hits
+// "Get rates" to see every connected carrier's options, picks one,
+// then "Buy label" finalizes the purchase.
 export default function ShipForm({ orderId }: { orderId: string }) {
   const router = useRouter();
-  const [carrierCode, setCarrierCode] = useState("stamps_com");
-  const [packageCode, setPackageCode] = useState("package");
   const [weightLb, setWeightLb] = useState("0");
   const [weightOz, setWeightOz] = useState("8");
   const [length, setLength] = useState("");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
-  const [confirmation, setConfirmation] = useState("delivery");
+  const [signature, setSignature] = useState<"none" | "standard" | "adult">(
+    "none",
+  );
   const [rates, setRates] = useState<Rate[] | null>(null);
-  const [serviceCode, setServiceCode] = useState<string>("");
+  const [rateId, setRateId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Convert pounds + ounces → total ounces, then to a single
+  // decimal-pound value Shippo prefers.
   function totalOunces(): number {
     const lb = parseFloat(weightLb || "0") || 0;
     const oz = parseFloat(weightOz || "0") || 0;
@@ -52,7 +45,7 @@ export default function ShipForm({ orderId }: { orderId: string }) {
     const w = parseFloat(width);
     const h = parseFloat(height);
     if ([l, w, h].every((n) => Number.isFinite(n) && n > 0)) {
-      return { length: l, width: w, height: h, units: "inches" as const };
+      return { length: l, width: w, height: h, units: "in" as const };
     }
     return undefined;
   }
@@ -61,16 +54,14 @@ export default function ShipForm({ orderId }: { orderId: string }) {
     setBusy(true);
     setError(null);
     setRates(null);
-    setServiceCode("");
+    setRateId("");
     const r = await fetch(`/api/seller/orders/${orderId}/rates`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        carrierCode,
-        packageCode,
-        weight: { value: totalOunces(), units: "ounces" },
+        weight: { value: totalOunces(), units: "oz" },
         dimensions: dimensionsBody(),
-        confirmation,
+        signatureConfirmation: signature,
       }),
     });
     setBusy(false);
@@ -81,24 +72,24 @@ export default function ShipForm({ orderId }: { orderId: string }) {
     }
     setRates(data.rates as Rate[]);
     if (Array.isArray(data.rates) && data.rates.length > 0) {
-      setServiceCode(data.rates[0].serviceCode);
+      setRateId(data.rates[0].rateId);
     }
   }
 
   async function buy() {
-    if (!serviceCode) return;
+    if (!rateId || !rates) return;
+    const chosen = rates.find((r) => r.rateId === rateId);
+    if (!chosen) return;
     setBusy(true);
     setError(null);
     const r = await fetch(`/api/seller/orders/${orderId}/buy-label`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        carrierCode,
-        serviceCode,
-        packageCode,
-        weight: { value: totalOunces(), units: "ounces" },
-        dimensions: dimensionsBody(),
-        confirmation,
+        rateId: chosen.rateId,
+        provider: chosen.provider,
+        serviceName: chosen.serviceName,
+        amountCents: chosen.amountCents,
       }),
     });
     setBusy(false);
@@ -108,51 +99,46 @@ export default function ShipForm({ orderId }: { orderId: string }) {
       return;
     }
     router.refresh();
-    if (data.labelUrl) {
-      window.open(data.labelUrl, "_blank");
-    }
+    if (data.labelUrl) window.open(data.labelUrl, "_blank");
   }
 
-  const inp = "w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm";
+  const inp =
+    "w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm";
   const lbl = "mb-1 block text-xs text-paper/60";
 
   return (
     <div className="mt-4 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className={lbl}>Carrier</label>
-          <select className={inp} value={carrierCode} onChange={(e) => setCarrierCode(e.target.value)}>
-            {CARRIERS.map((c) => (
-              <option key={c.code} value={c.code}>{c.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={lbl}>Package</label>
-          <select className={inp} value={packageCode} onChange={(e) => setPackageCode(e.target.value)}>
-            {PACKAGES.map((p) => (
-              <option key={p.code} value={p.code}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className={lbl}>Weight (lb)</label>
-          <input className={inp} inputMode="decimal" value={weightLb} onChange={(e) => setWeightLb(e.target.value)} />
+          <input
+            className={inp}
+            inputMode="decimal"
+            value={weightLb}
+            onChange={(e) => setWeightLb(e.target.value)}
+          />
         </div>
         <div>
           <label className={lbl}>Weight (oz)</label>
-          <input className={inp} inputMode="decimal" value={weightOz} onChange={(e) => setWeightOz(e.target.value)} />
+          <input
+            className={inp}
+            inputMode="decimal"
+            value={weightOz}
+            onChange={(e) => setWeightOz(e.target.value)}
+          />
         </div>
         <div>
-          <label className={lbl}>Confirmation</label>
-          <select className={inp} value={confirmation} onChange={(e) => setConfirmation(e.target.value)}>
+          <label className={lbl}>Signature</label>
+          <select
+            className={inp}
+            value={signature}
+            onChange={(e) =>
+              setSignature(e.target.value as "none" | "standard" | "adult")
+            }
+          >
             <option value="none">None</option>
-            <option value="delivery">Delivery</option>
-            <option value="signature">Signature</option>
-            <option value="adult_signature">Adult signature</option>
+            <option value="standard">Standard</option>
+            <option value="adult">Adult</option>
           </select>
         </div>
       </div>
@@ -160,15 +146,33 @@ export default function ShipForm({ orderId }: { orderId: string }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className={lbl}>Length (in)</label>
-          <input className={inp} inputMode="decimal" placeholder="optional" value={length} onChange={(e) => setLength(e.target.value)} />
+          <input
+            className={inp}
+            inputMode="decimal"
+            placeholder="optional"
+            value={length}
+            onChange={(e) => setLength(e.target.value)}
+          />
         </div>
         <div>
           <label className={lbl}>Width (in)</label>
-          <input className={inp} inputMode="decimal" placeholder="optional" value={width} onChange={(e) => setWidth(e.target.value)} />
+          <input
+            className={inp}
+            inputMode="decimal"
+            placeholder="optional"
+            value={width}
+            onChange={(e) => setWidth(e.target.value)}
+          />
         </div>
         <div>
           <label className={lbl}>Height (in)</label>
-          <input className={inp} inputMode="decimal" placeholder="optional" value={height} onChange={(e) => setHeight(e.target.value)} />
+          <input
+            className={inp}
+            inputMode="decimal"
+            placeholder="optional"
+            value={height}
+            onChange={(e) => setHeight(e.target.value)}
+          />
         </div>
       </div>
 
@@ -183,7 +187,8 @@ export default function ShipForm({ orderId }: { orderId: string }) {
 
       {rates && rates.length === 0 && (
         <p className="text-sm text-paper/60">
-          No rates returned for that carrier + package combination.
+          No rates returned. Connect a carrier in your Shippo dashboard or
+          adjust weight / dimensions.
         </p>
       )}
 
@@ -193,29 +198,36 @@ export default function ShipForm({ orderId }: { orderId: string }) {
             Pick a service
           </p>
           <ul className="space-y-1 text-sm">
-            {rates.map((r) => {
-              const total = (r.shipmentCost ?? 0) + (r.otherCost ?? 0);
-              return (
-                <li key={r.serviceCode}>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-white/5">
-                    <input
-                      type="radio"
-                      name="serviceCode"
-                      value={r.serviceCode}
-                      checked={serviceCode === r.serviceCode}
-                      onChange={() => setServiceCode(r.serviceCode)}
-                    />
-                    <span className="flex-1">{r.serviceName}</span>
-                    <span className="font-mono text-paper/80">${total.toFixed(2)}</span>
-                  </label>
-                </li>
-              );
-            })}
+            {rates.map((r) => (
+              <li key={r.rateId}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-white/5">
+                  <input
+                    type="radio"
+                    name="rateId"
+                    value={r.rateId}
+                    checked={rateId === r.rateId}
+                    onChange={() => setRateId(r.rateId)}
+                  />
+                  <span className="flex-1">
+                    <span className="font-semibold">{r.provider}</span>{" "}
+                    <span className="text-paper/70">{r.serviceName}</span>
+                    {r.estimatedDays !== null && (
+                      <span className="ml-2 text-xs text-paper/50">
+                        ~{r.estimatedDays}d
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-mono text-paper/80">
+                    ${(r.amountCents / 100).toFixed(2)}
+                  </span>
+                </label>
+              </li>
+            ))}
           </ul>
           <button
             type="button"
             onClick={buy}
-            disabled={busy || !serviceCode}
+            disabled={busy || !rateId}
             className="mt-3 rounded-full bg-accent px-5 py-2 text-xs font-bold text-ink disabled:opacity-50"
           >
             {busy ? "Buying…" : "Buy label"}

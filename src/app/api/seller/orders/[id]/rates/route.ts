@@ -1,23 +1,37 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import {
-  getRates,
+  createShipment,
   parseShippingAddress,
   shipFromJsonToAddress,
-  type RateRequest,
-} from "@/lib/shipstation";
+  type ShippoParcel,
+} from "@/lib/shippo";
 
 export const runtime = "nodejs";
 
-interface Body {
-  carrierCode?: string;
-  packageCode?: string;
-  weight?: { value: number; units: "ounces" | "pounds" | "grams" | "kilograms" };
-  dimensions?: { length: number; width: number; height: number; units: "inches" | "centimeters" };
-  confirmation?: "none" | "delivery" | "signature" | "adult_signature";
-}
+const Body = z.object({
+  weight: z.object({
+    value: z.number().positive(),
+    units: z.enum(["lb", "oz", "g", "kg"]),
+  }),
+  dimensions: z
+    .object({
+      length: z.number().positive(),
+      width: z.number().positive(),
+      height: z.number().positive(),
+      units: z.enum(["in", "cm"]),
+    })
+    .optional(),
+  signatureConfirmation: z.enum(["none", "standard", "adult"]).optional(),
+});
 
+// POST /api/seller/orders/[id]/rates
+//
+// Quote shipping rates from every connected carrier for one order via
+// Shippo. Returns a flat array of rate options the seller picks from
+// in the UI; we hand the chosen `rateId` to /buy-label.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -27,8 +41,8 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const body = (await req.json().catch(() => null)) as Body | null;
-  if (!body?.carrierCode || !body.weight) {
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "bad_body" }, { status: 400 });
   }
 
@@ -65,26 +79,46 @@ export async function POST(
     );
   }
 
-  const rateReq: RateRequest = {
-    carrierCode: body.carrierCode,
-    packageCode: body.packageCode,
-    confirmation: body.confirmation,
-    fromPostalCode: shipFrom.postalCode,
-    toState: shipTo.state,
-    toCountry: shipTo.country,
-    toPostalCode: shipTo.postalCode,
-    toCity: shipTo.city,
-    weight: body.weight,
-    dimensions: body.dimensions,
-    residential: shipTo.residential,
+  const parcel: ShippoParcel = {
+    weight: String(parsed.data.weight.value),
+    mass_unit: parsed.data.weight.units,
+    length: String(parsed.data.dimensions?.length ?? 6),
+    width: String(parsed.data.dimensions?.width ?? 6),
+    height: String(parsed.data.dimensions?.height ?? 1),
+    distance_unit: parsed.data.dimensions?.units ?? "in",
   };
 
-  const result = await getRates(rateReq);
+  const sigMap = { standard: "STANDARD", adult: "ADULT" } as const;
+  const sig =
+    parsed.data.signatureConfirmation &&
+    parsed.data.signatureConfirmation !== "none"
+      ? sigMap[parsed.data.signatureConfirmation]
+      : undefined;
+
+  const result = await createShipment({
+    address_from: shipFrom,
+    address_to: shipTo,
+    parcels: [parcel],
+    extra: sig ? { signature_confirmation: sig } : undefined,
+  });
+
   if (!result.ok) {
     return NextResponse.json(
-      { error: "shipstation_error", message: result.error, status: result.status },
+      { error: "shippo_error", message: result.error, status: result.status },
       { status: 502 },
     );
   }
-  return NextResponse.json({ rates: result.data });
+
+  const rates = (result.data.rates ?? []).map((r) => ({
+    rateId: r.object_id,
+    provider: r.provider,
+    serviceName: r.servicelevel.name,
+    serviceToken: r.servicelevel.token,
+    amountCents: Math.round(parseFloat(r.amount) * 100),
+    currency: r.currency,
+    estimatedDays: r.estimated_days ?? null,
+  }));
+  rates.sort((a, b) => a.amountCents - b.amountCents);
+
+  return NextResponse.json({ rates, shipmentId: result.data.object_id });
 }

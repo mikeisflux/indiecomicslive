@@ -1,32 +1,28 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { logAudit } from "@/lib/admin";
-import {
-  createLabel,
-  parseShippingAddress,
-  shipFromJsonToAddress,
-  voidLabel,
-  type CreateLabelRequest,
-} from "@/lib/shipstation";
+import { createTransaction, refundTransaction } from "@/lib/shippo";
 import { r2Key, r2PutObject } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
-interface Body {
-  carrierCode?: string;
-  serviceCode?: string;
-  packageCode?: string;
-  weight?: { value: number; units: "ounces" | "pounds" | "grams" | "kilograms" };
-  dimensions?: { length: number; width: number; height: number; units: "inches" | "centimeters" };
-  confirmation?: "none" | "delivery" | "signature" | "adult_signature";
-}
+const Body = z.object({
+  rateId: z.string().min(1).max(200),
+  // Snapshot of carrier + service the rate represented — saved on the
+  // Order so the order detail page can display them without another
+  // Shippo round-trip.
+  provider: z.string().max(60).optional(),
+  serviceName: z.string().max(120).optional(),
+  amountCents: z.number().int().nonnegative().optional(),
+});
 
-function todayYmd(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
+// POST /api/seller/orders/[id]/buy-label
+//
+// Buy a Shippo label for one order. The seller already picked a rate
+// from /rates and we just need to turn it into a transaction. Stores
+// the resulting label PDF in R2 and writes tracking back to the Order.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -36,8 +32,8 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const body = (await req.json().catch(() => null)) as Body | null;
-  if (!body?.carrierCode || !body.serviceCode || !body.packageCode || !body.weight) {
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "bad_body" }, { status: 400 });
   }
 
@@ -51,84 +47,69 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (!["paid"].includes(order.status)) {
+  if (order.status !== "paid") {
     return NextResponse.json(
       { error: "wrong_status", message: `Order is ${order.status}; can't buy label` },
       { status: 409 },
     );
   }
 
-  const me = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { shipFromAddress: true },
-  });
-  const shipFrom = shipFromJsonToAddress(
-    (me?.shipFromAddress ?? null) as Record<string, unknown> | null,
-  );
-  if (!shipFrom) {
-    return NextResponse.json(
-      { error: "no_ship_from", message: "Set a return address first." },
-      { status: 400 },
-    );
-  }
-
-  const shipTo = parseShippingAddress(order.shippingAddress);
-  if (!shipTo) {
-    return NextResponse.json(
-      { error: "no_ship_to", message: "No structured shipping address on the order." },
-      { status: 400 },
-    );
-  }
-
-  const labelReq: CreateLabelRequest = {
-    carrierCode: body.carrierCode,
-    serviceCode: body.serviceCode,
-    packageCode: body.packageCode,
-    confirmation: body.confirmation,
-    shipDate: todayYmd(),
-    weight: body.weight,
-    dimensions: body.dimensions,
-    shipFrom,
-    shipTo,
-  };
-
-  const result = await createLabel(labelReq);
+  const result = await createTransaction(parsed.data.rateId);
   if (!result.ok) {
     return NextResponse.json(
-      { error: "shipstation_error", message: result.error, status: result.status },
+      { error: "shippo_error", message: result.error, status: result.status },
       { status: 502 },
     );
   }
-  const label = result.data;
+  const tx = result.data;
+  if (tx.status !== "SUCCESS" || !tx.tracking_number || !tx.label_url) {
+    const detail =
+      (tx.messages ?? []).map((m) => m.text).join("; ") ||
+      `status=${tx.status}`;
+    return NextResponse.json(
+      { error: "transaction_failed", message: detail },
+      { status: 502 },
+    );
+  }
 
-  // Persist the PDF to R2 so we can re-print without re-buying.
-  const pdfBuf = Buffer.from(label.labelData, "base64");
-  const key = r2Key(["labels", order.id, `${Date.now()}-${label.shipmentId}.pdf`]);
+  // Pull the label PDF from Shippo and stash in R2 so reprints are free.
+  let pdfBuf: Buffer;
+  try {
+    const r = await fetch(tx.label_url);
+    if (!r.ok) throw new Error(`label fetch ${r.status}`);
+    pdfBuf = Buffer.from(await r.arrayBuffer());
+  } catch (e) {
+    console.error("[buy-label] couldn't pull label PDF; refunding", e);
+    await refundTransaction(tx.object_id).catch(() => null);
+    return NextResponse.json(
+      { error: "label_archive_failed", message: "Couldn't pull label PDF; transaction refunded." },
+      { status: 502 },
+    );
+  }
+  const key = r2Key(["labels", order.id, `${Date.now()}-${tx.object_id}.pdf`]);
   try {
     await r2PutObject({ key, body: pdfBuf, contentType: "application/pdf" });
   } catch (e) {
-    // R2 failed AFTER we already paid for the label. Try to claw it
-    // back so we don't double-charge on retry.
-    console.error("[buy-label] R2 upload failed; voiding ShipStation label", e);
-    await voidLabel(label.shipmentId).catch(() => null);
+    console.error("[buy-label] R2 upload failed; refunding label", e);
+    await refundTransaction(tx.object_id).catch(() => null);
     return NextResponse.json(
-      { error: "label_archive_failed", message: "Couldn't archive label PDF; label voided." },
+      { error: "label_archive_failed", message: "Couldn't archive label PDF; label refunded." },
       { status: 502 },
     );
   }
 
-  // Update the order. Status moves to 'shipped'; deliveredAt + payout
-  // get set later by the ShipStation webhook + Thursday cron.
   const updated = await prisma.order.update({
     where: { id: order.id },
     data: {
       status: "shipped",
-      shipstationShipmentId: String(label.shipmentId),
-      shippingCarrier: body.carrierCode,
-      shippingService: body.serviceCode,
-      shippingCostCents: Math.round((label.shipmentCost ?? 0) * 100),
+      // Field name kept for back-compat; semantically it now stores
+      // Shippo's transaction object_id.
+      shipstationShipmentId: tx.object_id,
+      shippingCarrier: parsed.data.provider ?? null,
+      shippingService: parsed.data.serviceName ?? null,
+      shippingCostCents: parsed.data.amountCents ?? null,
       labelR2Key: key,
-      trackingNumber: label.trackingNumber,
+      trackingNumber: tx.tracking_number,
       shippedAt: new Date(),
     },
   });
@@ -139,17 +120,18 @@ export async function POST(
     targetKind: "order",
     targetId: order.id,
     metadata: {
-      shipstationShipmentId: label.shipmentId,
-      tracking: label.trackingNumber,
-      carrierCode: body.carrierCode,
-      serviceCode: body.serviceCode,
-      shipmentCost: label.shipmentCost,
+      shippoTransactionId: tx.object_id,
+      tracking: tx.tracking_number,
+      provider: parsed.data.provider,
+      serviceName: parsed.data.serviceName,
+      amountCents: parsed.data.amountCents,
     },
   });
 
   return NextResponse.json({
     ok: true,
     trackingNumber: updated.trackingNumber,
+    trackingUrl: tx.tracking_url_provider,
     labelUrl: `/api/seller/orders/${order.id}/label.pdf`,
   });
 }

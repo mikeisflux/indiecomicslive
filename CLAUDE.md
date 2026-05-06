@@ -145,15 +145,16 @@ Public-facing docs that name the processor:
 - Feature work happens on `claude/*` branches (e.g. `claude/whatnot-clone-exploration-VxA1W`, `claude/merge-whatnot-exploration-MA9Pt`).
 - Always confirm the branch with the user before pushing destructive history changes.
 
-## Shipping (ShipStation)
+## Shipping (Shippo)
 
-We run a **single master ShipStation account** — one set of API creds in `.env.local` (`SHIPSTATION_API_KEY` / `SHIPSTATION_API_SECRET`). Sellers don't connect their own ShipStation; they print labels through our UI and we pay the carrier.
+We run a **single master Shippo account** — one live API token in `.env.local` (`SHIPPO_API_KEY`). Carriers are connected inside Shippo's dashboard; their rates surface automatically through our `/rates` endpoint. Sellers don't connect their own Shippo; they print labels through our UI and Shippo bills our account for postage.
 
-- Library: `src/lib/shipstation.ts` (V1 REST client, basic auth, helpers for getRates / createLabel / parseShippingAddress / shipFromJsonToAddress / voidLabel).
+- Library: `src/lib/shippo.ts` (REST client with `Authorization: ShippoToken …`, helpers for `createShipment` / `createTransaction` / `refundTransaction` / `getTracking` / `parseShippingAddress` / `shipFromJsonToAddress`).
 - Each seller stores their **return address** in `User.shipFromAddress` (JSON). Edit at `/seller/ship-from`.
-- **Buy label flow**: `/seller/orders/[id]` → ShipForm → `POST /api/seller/orders/[id]/rates` → `POST /api/seller/orders/[id]/buy-label`. Label PDF cached in R2 under `labels/<order-id>/...pdf`; re-served via `GET /api/seller/orders/[id]/label.pdf` (presigned R2 redirect).
-- Buying a label sets `Order.status='shipped'`, `shippedAt`, `trackingNumber`, `shippingCarrier`, `shippingService`, `shippingCostCents`, `shipstationShipmentId`, `labelR2Key`.
-- **Webhook**: `POST /api/webhooks/shipstation?token=<SHIPSTATION_WEBHOOK_SECRET>` — currently a logged stub for observability. Real delivery confirmation: an admin marks the order delivered (`/admin/orders/[id]` → `mark_delivered`, which sets `deliveredAt` and makes the order payout-eligible). Future improvement: a daily cron polling SS shipment status.
+- **Buy label flow** (two-step): `/seller/orders/[id]` → ShipForm → `POST /api/seller/orders/[id]/rates` (calls `POST /shipments`) → user picks a `rateId` → `POST /api/seller/orders/[id]/buy-label` (calls `POST /transactions`). Label PDF is fetched from Shippo's CDN and cached in R2 under `labels/<order-id>/...pdf`; re-served via `GET /api/seller/orders/[id]/label.pdf` (presigned R2 redirect).
+- **Bundle flow**: `POST /api/seller/shipments/[id]/buy-label` follows the same shape against a `Shipment` (one Shippo transaction, tracking denormalized onto every linked Order).
+- Buying a label sets `Order.status='shipped'`, `shippedAt`, `trackingNumber`, `shippingCarrier`, `shippingService`, `shippingCostCents`, `shipstationShipmentId` (kept as a generic shipping-reference id; now stores Shippo's transaction `object_id`), `labelR2Key`.
+- **Webhook**: `POST /api/webhooks/shippo?token=<SHIPPO_WEBHOOK_SECRET>` consumes `track_updated` events. On `tracking_status.status === "DELIVERED"` we flip every Order with that tracking number to `delivered` and set `deliveredAt` (which makes the order payout-eligible). Configure in Shippo → Settings → API → Webhooks.
 
 ## Payouts (weekly Thursday)
 
@@ -188,7 +189,7 @@ Enabled per-platform via `PlatformSetting.recaptchaEnabled` + `recaptchaSiteKey`
 
 ## Pending / planned work
 
-- Daily ShipStation tracking poll → auto-set `Order.deliveredAt` (we currently rely on the admin marking delivered).
+- Optional daily Shippo tracking poll for any order whose webhook didn't reach us (defense-in-depth — the webhook handles delivered events today).
 - Buyer-visible tracking page on `/orders/[id]`.
 - Admin `/admin/payouts` page (run + history).
 

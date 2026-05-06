@@ -1,40 +1,28 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/admin";
-import {
-  createLabel,
-  parseShippingAddress,
-  shipFromJsonToAddress,
-  voidLabel,
-  type CreateLabelRequest,
-} from "@/lib/shipstation";
+import { createTransaction, refundTransaction } from "@/lib/shippo";
 import { r2Key, r2PutObject } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
-interface Body {
-  carrierCode?: string;
-  serviceCode?: string;
-  packageCode?: string;
-  weight?: { value: number; units: "ounces" | "pounds" | "grams" | "kilograms" };
-  dimensions?: { length: number; width: number; height: number; units: "inches" | "centimeters" };
-  confirmation?: "none" | "delivery" | "signature" | "adult_signature";
-}
-
-function todayYmd(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+const Body = z.object({
+  rateId: z.string().min(1).max(200),
+  provider: z.string().max(60).optional(),
+  serviceName: z.string().max(120).optional(),
+  amountCents: z.number().int().nonnegative().optional(),
+});
 
 // POST /api/seller/shipments/[id]/buy-label
 //
-// Buy a single ShipStation label that covers every Order in this
-// Shipment. The orders share a buyer (enforced when the bundle was
-// created), so they share a ship-to address — we use the address
-// from the first order. The label PDF is cached in R2 once and the
-// resulting tracking number is denormalized onto every Order in the
-// shipment so per-order pages stay accurate.
+// Buy a single Shippo label that covers every Order in this Shipment.
+// The seller already quoted rates against the bundle (using the
+// combined weight / largest dimensions of the items) and chose one;
+// this endpoint just finalizes the purchase. Tracking + label are
+// stored on the Shipment row and denormalized onto every linked
+// Order so per-order pages keep working.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -44,8 +32,8 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id: shipmentId } = await params;
-  const body = (await req.json().catch(() => null)) as Body | null;
-  if (!body?.carrierCode || !body.serviceCode || !body.packageCode || !body.weight) {
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "bad_body" }, { status: 400 });
   }
 
@@ -77,74 +65,59 @@ export async function POST(
     }
   }
 
-  const me = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { shipFromAddress: true },
-  });
-  const shipFrom = shipFromJsonToAddress(
-    (me?.shipFromAddress ?? null) as Record<string, unknown> | null,
-  );
-  if (!shipFrom) {
-    return NextResponse.json(
-      { error: "no_ship_from", message: "Set a return address first." },
-      { status: 400 },
-    );
-  }
-
-  const shipTo = parseShippingAddress(shipment.orders[0].shippingAddress);
-  if (!shipTo) {
-    return NextResponse.json(
-      { error: "no_ship_to", message: "No structured shipping address on the buyer's first order." },
-      { status: 400 },
-    );
-  }
-
-  const labelReq: CreateLabelRequest = {
-    carrierCode: body.carrierCode,
-    serviceCode: body.serviceCode,
-    packageCode: body.packageCode,
-    confirmation: body.confirmation,
-    shipDate: todayYmd(),
-    weight: body.weight,
-    dimensions: body.dimensions,
-    shipFrom,
-    shipTo,
-  };
-
-  const result = await createLabel(labelReq);
+  const result = await createTransaction(parsed.data.rateId);
   if (!result.ok) {
     return NextResponse.json(
-      { error: "shipstation_error", message: result.error, status: result.status },
+      { error: "shippo_error", message: result.error, status: result.status },
       { status: 502 },
     );
   }
-  const label = result.data;
+  const tx = result.data;
+  if (tx.status !== "SUCCESS" || !tx.tracking_number || !tx.label_url) {
+    const detail =
+      (tx.messages ?? []).map((m) => m.text).join("; ") ||
+      `status=${tx.status}`;
+    return NextResponse.json(
+      { error: "transaction_failed", message: detail },
+      { status: 502 },
+    );
+  }
 
-  const pdfBuf = Buffer.from(label.labelData, "base64");
-  const key = r2Key(["labels", shipment.id, `${Date.now()}-${label.shipmentId}.pdf`]);
+  let pdfBuf: Buffer;
+  try {
+    const r = await fetch(tx.label_url);
+    if (!r.ok) throw new Error(`label fetch ${r.status}`);
+    pdfBuf = Buffer.from(await r.arrayBuffer());
+  } catch (e) {
+    console.error("[buy-label/shipment] couldn't pull label PDF; refunding", e);
+    await refundTransaction(tx.object_id).catch(() => null);
+    return NextResponse.json(
+      { error: "label_archive_failed", message: "Couldn't pull label PDF; transaction refunded." },
+      { status: 502 },
+    );
+  }
+  const key = r2Key(["labels", shipment.id, `${Date.now()}-${tx.object_id}.pdf`]);
   try {
     await r2PutObject({ key, body: pdfBuf, contentType: "application/pdf" });
   } catch (e) {
-    console.error("[buy-label/shipment] R2 upload failed; voiding label", e);
-    await voidLabel(label.shipmentId).catch(() => null);
+    console.error("[buy-label/shipment] R2 upload failed; refunding label", e);
+    await refundTransaction(tx.object_id).catch(() => null);
     return NextResponse.json(
-      { error: "label_archive_failed", message: "Couldn't archive label PDF; label voided." },
+      { error: "label_archive_failed", message: "Couldn't archive label PDF; label refunded." },
       { status: 502 },
     );
   }
 
-  // Persist tracking + label to the Shipment AND denormalize onto
-  // every linked Order so existing per-order UI keeps working.
   await prisma.$transaction([
     prisma.shipment.update({
       where: { id: shipment.id },
       data: {
-        shipstationShipmentId: String(label.shipmentId),
-        shippingCarrier: body.carrierCode,
-        shippingService: body.serviceCode,
-        shippingCostCents: Math.round((label.shipmentCost ?? 0) * 100),
+        shipstationShipmentId: tx.object_id,
+        shippingCarrier: parsed.data.provider ?? null,
+        shippingService: parsed.data.serviceName ?? null,
+        shippingCostCents: parsed.data.amountCents ?? null,
         labelR2Key: key,
-        trackingNumber: label.trackingNumber,
+        trackingNumber: tx.tracking_number,
         shippedAt: new Date(),
       },
     }),
@@ -152,12 +125,12 @@ export async function POST(
       where: { shipmentId: shipment.id },
       data: {
         status: "shipped",
-        shipstationShipmentId: String(label.shipmentId),
-        shippingCarrier: body.carrierCode,
-        shippingService: body.serviceCode,
-        shippingCostCents: Math.round((label.shipmentCost ?? 0) * 100),
+        shipstationShipmentId: tx.object_id,
+        shippingCarrier: parsed.data.provider ?? null,
+        shippingService: parsed.data.serviceName ?? null,
+        shippingCostCents: parsed.data.amountCents ?? null,
         labelR2Key: key,
-        trackingNumber: label.trackingNumber,
+        trackingNumber: tx.tracking_number,
         shippedAt: new Date(),
       },
     }),
@@ -170,17 +143,18 @@ export async function POST(
     targetId: shipment.id,
     metadata: {
       orderCount: shipment.orders.length,
-      shipstationShipmentId: label.shipmentId,
-      tracking: label.trackingNumber,
-      carrierCode: body.carrierCode,
-      serviceCode: body.serviceCode,
-      shipmentCost: label.shipmentCost,
+      shippoTransactionId: tx.object_id,
+      tracking: tx.tracking_number,
+      provider: parsed.data.provider,
+      serviceName: parsed.data.serviceName,
+      amountCents: parsed.data.amountCents,
     },
   });
 
   return NextResponse.json({
     ok: true,
-    trackingNumber: label.trackingNumber,
+    trackingNumber: tx.tracking_number,
+    trackingUrl: tx.tracking_url_provider,
     labelUrl: `/api/seller/shipments/${shipment.id}/label.pdf`,
     orderCount: shipment.orders.length,
   });
