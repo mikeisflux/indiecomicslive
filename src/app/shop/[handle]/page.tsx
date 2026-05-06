@@ -3,7 +3,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import SiteHeader from "@/components/SiteHeader";
+import WatchButton from "@/components/WatchButton";
 import BuyNowButton from "./BuyNowButton";
 import MessageSellerButton from "./MessageSellerButton";
 
@@ -66,6 +68,22 @@ export default async function ShopPage({
       _count: { select: { images: true } },
     },
   });
+
+  // Pre-resolve which of these lots the current viewer is already
+  // watching so the heart icons render in the right state without a
+  // client-side round-trip.
+  const session = await auth();
+  let watchedLotIds = new Set<string>();
+  if (session?.user?.id && lots.length > 0) {
+    const rows = await prisma.watchedLot.findMany({
+      where: {
+        userId: session.user.id,
+        lotId: { in: lots.map((l) => l.id) },
+      },
+      select: { lotId: true },
+    });
+    watchedLotIds = new Set(rows.map((r) => r.lotId));
+  }
 
   return (
     <>
@@ -134,6 +152,15 @@ export default async function ShopPage({
                         +{l._count.images - 1} more
                       </span>
                     )}
+                    <span className="absolute bottom-3 right-3">
+                      <WatchButton
+                        kind="lot"
+                        id={l.id}
+                        initial={watchedLotIds.has(l.id)}
+                        size="sm"
+                        iconOnly
+                      />
+                    </span>
                   </div>
                   <div className="p-4">
                     <p className="line-clamp-2 font-semibold">{l.title}</p>

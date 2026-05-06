@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import StreamOverlay from "./StreamOverlay";
 import ReactionLayer, { ReactionBar } from "./ReactionLayer";
+import WatchButton from "@/components/WatchButton";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -33,6 +34,7 @@ type Props = {
     trailerUrl: string | null;
     pinnedLotId: string | null;
     chatOverlayEnabled: boolean;
+    isWatching: boolean;
   };
   seller: {
     handle: string | null;
@@ -169,6 +171,12 @@ export default function ShowRoom({
             {connected ? "connected" : "connecting…"}
           </p>
         </div>
+        <WatchButton
+          kind="show"
+          id={show.id}
+          initial={show.isWatching}
+          size="sm"
+        />
       </header>
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import ShowRoom from "./ShowRoom";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +70,17 @@ export default async function ShowPage({
     ? show.lots.find((l) => l.id === show.pinnedLotId) ?? null
     : null;
 
+  // Is the current viewer already watching this show?
+  let isWatching = false;
+  const session = await auth();
+  if (session?.user?.id) {
+    const row = await prisma.watchedShow.findUnique({
+      where: { userId_showId: { userId: session.user.id, showId: show.id } },
+      select: { userId: true },
+    });
+    isWatching = !!row;
+  }
+
   return (
     <ShowRoom
       show={{
@@ -79,6 +91,7 @@ export default async function ShowPage({
         trailerUrl: show.trailerUrl,
         pinnedLotId: show.pinnedLotId,
         chatOverlayEnabled: show.chatOverlayEnabled,
+        isWatching,
       }}
       seller={show.seller}
       liveLot={liveLot}

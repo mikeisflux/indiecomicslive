@@ -22,19 +22,56 @@ function dollars(cents: number): string {
 export default async function BuyerDashboard() {
   const me = await requireOnboardedUser("/orders");
 
-  const [orders, stats, liveShows] = await Promise.all([
-    prisma.order.findMany({
-      where: { buyerId: me.id },
-      orderBy: [{ createdAt: "desc" }],
-      take: 200,
-      include: {
-        lot: { select: { title: true, imageUrl: true, kind: true } },
-        seller: { select: { handle: true, name: true } },
-      },
-    }),
-    getBuyerStats(me.id),
-    getFollowedShowsForBuyer(me.id),
-  ]);
+  const [orders, stats, liveShows, watchedLots, watchedShows] =
+    await Promise.all([
+      prisma.order.findMany({
+        where: { buyerId: me.id },
+        orderBy: [{ createdAt: "desc" }],
+        take: 200,
+        include: {
+          lot: { select: { title: true, imageUrl: true, kind: true } },
+          seller: { select: { handle: true, name: true } },
+        },
+      }),
+      getBuyerStats(me.id),
+      getFollowedShowsForBuyer(me.id),
+      prisma.watchedLot.findMany({
+        where: { userId: me.id },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: {
+          lot: {
+            select: {
+              id: true,
+              title: true,
+              imageUrl: true,
+              kind: true,
+              buyNowCents: true,
+              status: true,
+              inventoryCount: true,
+              seller: { select: { handle: true } },
+            },
+          },
+        },
+      }),
+      prisma.watchedShow.findMany({
+        where: { userId: me.id },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: {
+          show: {
+            select: {
+              id: true,
+              title: true,
+              coverImageUrl: true,
+              status: true,
+              scheduledFor: true,
+              seller: { select: { handle: true } },
+            },
+          },
+        },
+      }),
+    ]);
 
   const rows: OrderRow[] = orders.map((o) => ({
     id: o.id,
@@ -149,6 +186,106 @@ export default async function BuyerDashboard() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {(watchedLots.length > 0 || watchedShows.length > 0) && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-paper/60">
+            Watching
+          </h2>
+          {watchedShows.length > 0 && (
+            <ul className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {watchedShows.map((w) => (
+                <li
+                  key={w.show.id}
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+                >
+                  <Link href={`/s/${w.show.id}`} className="block">
+                    <div className="relative aspect-video bg-black/40">
+                      {w.show.coverImageUrl ? (
+                        <Image
+                          src={w.show.coverImageUrl}
+                          alt={w.show.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : null}
+                      {w.show.status === "live" && (
+                        <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
+                          Live
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="line-clamp-1 text-sm font-semibold">
+                        {w.show.title}
+                      </p>
+                      <p className="text-xs text-paper/60">
+                        @{w.show.seller.handle ?? "unknown"}
+                        {w.show.scheduledFor && w.show.status === "scheduled"
+                          ? ` · ${new Date(w.show.scheduledFor).toLocaleDateString()}`
+                          : ""}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {watchedLots.length > 0 && (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {watchedLots.map((w) => (
+                <li
+                  key={w.lot.id}
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+                >
+                  <Link
+                    href={
+                      w.lot.seller?.handle
+                        ? `/shop/${w.lot.seller.handle}`
+                        : `/orders`
+                    }
+                    className="block"
+                  >
+                    <div className="relative aspect-square bg-black/40">
+                      {w.lot.imageUrl ? (
+                        <Image
+                          src={w.lot.imageUrl}
+                          alt={w.lot.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : null}
+                      {w.lot.kind === "mystery" && (
+                        <span className="absolute left-2 top-2 rounded-full bg-purple-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple-200">
+                          Mystery
+                        </span>
+                      )}
+                      {w.lot.inventoryCount === 0 && (
+                        <span className="absolute right-2 top-2 rounded-full bg-paper/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-paper/60">
+                          Sold out
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="line-clamp-1 text-sm font-semibold">
+                        {w.lot.title}
+                      </p>
+                      <p className="text-xs text-paper/60">
+                        {w.lot.kind === "auction"
+                          ? "Auction"
+                          : `$${((w.lot.buyNowCents ?? 0) / 100).toFixed(2)}`}
+                        {w.lot.seller?.handle
+                          ? ` · @${w.lot.seller.handle}`
+                          : ""}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

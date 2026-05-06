@@ -233,6 +233,8 @@ model User {
   conversationsA    Conversation[]      @relation("ConvA")
   conversationsB    Conversation[]      @relation("ConvB")
   sentMessages      Message[]           @relation("Sender")
+  watchedLots       WatchedLot[]
+  watchedShows      WatchedShow[]
   passwordResetTokens PasswordResetToken[]
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]
@@ -506,10 +508,43 @@ model Show {
   seller       User          @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
   lots         Lot[]
   chatMessages ChatMessage[]
+  watchers     WatchedShow[]
 
   @@index([sellerId])
   @@index([status])
   @@map("shows")
+}
+
+// Buyer-side watchlist. Two narrow tables — composite-keyed on
+// (userId, lot/show id) so toggle is upsert/delete by the same key
+// without a UUID lookup. Cascade-delete on either side so deleting a
+// user/lot/show cleans up the bookmarks.
+model WatchedLot {
+  userId    String   @map("user_id") @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lot  Lot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@id([userId, lotId])
+  @@index([userId, createdAt])
+  @@index([lotId])
+  @@map("watched_lots")
+}
+
+model WatchedShow {
+  userId    String   @map("user_id") @db.Uuid
+  showId    String   @map("show_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  show Show @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  @@id([userId, showId])
+  @@index([userId, createdAt])
+  @@index([showId])
+  @@map("watched_shows")
 }
 
 model Lot {
@@ -565,6 +600,7 @@ model Lot {
   // power the gallery view on /shop, /orders/[id], and any future
   // lot detail page.
   images        LotImage[]
+  watchers      WatchedLot[]
 
   @@index([showId])
   @@index([sellerId, status])
