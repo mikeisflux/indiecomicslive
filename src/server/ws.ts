@@ -150,6 +150,10 @@ const Inbound = z.discriminatedUnion("type", [
     type: z.literal("reaction"),
     kind: z.enum(REACTION_KINDS),
   }),
+  z.object({
+    type: z.literal("chat_delete"),
+    messageId: z.string().uuid(),
+  }),
 ]);
 
 wss.on("connection", async (ws, req) => {
