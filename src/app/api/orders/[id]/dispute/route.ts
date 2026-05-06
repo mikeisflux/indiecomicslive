@@ -45,8 +45,12 @@ export async function POST(
 
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { id: true, buyerId: true, status: true },
-    include: { dispute: { select: { id: true } } },
+    select: {
+      id: true,
+      buyerId: true,
+      status: true,
+      dispute: { select: { id: true } },
+    },
   });
   if (!order || order.buyerId !== session.user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
