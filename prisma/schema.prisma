@@ -90,6 +90,43 @@ model PlatformSetting {
   @@map("platform_settings")
 }
 
+// User-to-user direct messages. Threaded by Conversation (one row
+// per pair of users). Participant ids are stored sorted (A < B
+// lexicographically) so we can use a unique index for "find or
+// create" lookups.
+model Conversation {
+  id              String   @id @default(uuid()) @db.Uuid
+  participantAId  String   @map("participant_a_id") @db.Uuid
+  participantBId  String   @map("participant_b_id") @db.Uuid
+  lastMessageAt   DateTime @default(now()) @map("last_message_at")
+  lastMessagePreview String? @map("last_message_preview")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  participantA User      @relation("ConvA", fields: [participantAId], references: [id], onDelete: Cascade)
+  participantB User      @relation("ConvB", fields: [participantBId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId, lastMessageAt])
+  @@index([participantBId, lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  senderId       String   @map("sender_id") @db.Uuid
+  body           String
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("Sender", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
 // One-shot password-reset tokens. Created when a user submits the
 // forgot-password form; consumed (deleted) when they POST a new
 // password. SHA-256 of the token is stored — the raw token only ever
@@ -185,6 +222,9 @@ model User {
   ordersAsSeller    Order[]             @relation("Seller")
   lotsAsSeller      Lot[]               @relation("LotSeller")
   payouts           Payout[]            @relation("PayoutSeller")
+  conversationsA    Conversation[]      @relation("ConvA")
+  conversationsB    Conversation[]      @relation("ConvB")
+  sentMessages      Message[]           @relation("Sender")
   passwordResetTokens PasswordResetToken[]
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]

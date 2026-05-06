@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import SiteHeader from "@/components/SiteHeader";
 import BuyNowButton from "./BuyNowButton";
+import MessageSellerButton from "./MessageSellerButton";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export default async function ShopPage({
               />
             ) : null}
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold">
               {seller.name ?? `@${seller.handle}`}
             </h1>
@@ -89,6 +90,9 @@ export default async function ShopPage({
                 {seller.bio}
               </p>
             )}
+          </div>
+          <div className="shrink-0">
+            <MessageSellerButton recipientId={seller.id} />
           </div>
         </header>
 

@@ -127,6 +127,9 @@ export default function AccountMenu({
                 <MenuLink href="/account/notifications" onClick={close}>
                   Notification settings
                 </MenuLink>
+                <MenuLink href="/account/messages" onClick={close}>
+                  Messages
+                </MenuLink>
               </ul>
             </div>
 
