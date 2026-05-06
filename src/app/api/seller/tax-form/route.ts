@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 import { encryptCredential } from "@/lib/encryption";
 
 export const runtime = "nodejs";
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
       taxFormType: parsed.data.formType,
       taxLegalNameEnc: encryptCredential(parsed.data.legalName),
       taxTinEnc: encryptCredential(tin),
-      taxAddressJson: parsed.data.address as unknown as Record<string, unknown>,
+      taxAddressJson: parsed.data.address as unknown as Prisma.InputJsonValue,
       taxFormSignedAt: new Date(),
     },
   });
