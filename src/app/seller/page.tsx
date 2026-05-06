@@ -21,7 +21,7 @@ export default async function SellerDashboard() {
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
       <h1 className="mb-6 text-2xl font-bold">Seller dashboard</h1>
 
-      <div className="mb-8 grid gap-2 sm:grid-cols-2">
+      <div className="mb-8 grid gap-2 sm:grid-cols-3">
         <Link
           href="/seller/shop"
           className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm hover:bg-white/[0.04]"
@@ -39,6 +39,15 @@ export default async function SellerDashboard() {
           <p className="font-semibold">Orders →</p>
           <p className="mt-1 text-xs text-paper/60">
             Print labels, track shipments, see delivered orders awaiting payout.
+          </p>
+        </Link>
+        <Link
+          href="/seller/stats"
+          className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-sm hover:bg-white/[0.04]"
+        >
+          <p className="font-semibold">Stats →</p>
+          <p className="mt-1 text-xs text-paper/60">
+            Gross, fees, net, top lots, and the daily sales sparkline.
           </p>
         </Link>
       </div>

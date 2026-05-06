@@ -142,14 +142,18 @@ export default function SellerControls({ show, initialLots }: Props) {
       {tab === "stats" && (
         <Stub
           title="Stats"
-          body="Weekly aggregates: gross, fees, payouts, top lots. Coming soon."
+          body="Gross, fees, net, top lots, and the daily sparkline."
+          actions={[{ href: "/seller/stats", label: "Open stats →" }]}
         />
       )}
 
       {tab === "messages" && (
         <Stub
           title="Messages"
-          body="Buyer ↔ seller direct messages live here. Coming soon."
+          body="Direct messages with your buyers."
+          actions={[
+            { href: "/account/messages", label: "Open inbox →" },
+          ]}
         />
       )}
 
