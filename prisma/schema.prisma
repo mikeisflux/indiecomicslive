@@ -94,6 +94,12 @@ model PlatformSetting {
   shippoApiKey       String? @map("shippo_api_key")
   shippoWebhookSecret String? @map("shippo_webhook_secret")
 
+  // Sales tax — flat per-state rate map in basis points. Configure at
+  // /admin/settings/tax. Example: { "CA": 850, "NY": 800 } means 8.50%
+  // for California buyers, 8.00% for New York buyers. States not in
+  // the map: no tax collected (we have no nexus there).
+  salesTaxRatesByState Json? @map("sales_tax_rates_by_state")
+
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedBy String?  @map("updated_by") @db.Uuid
 
@@ -192,6 +198,23 @@ model User {
   // Nullable so legacy users created before password auth can still
   // exist; they'll be prompted to set a password on first sign-in.
   passwordHash       String?   @map("password_hash")
+
+  // 2FA / TOTP. Secret is encrypted with the same AES-256-GCM key
+  // used for KYC PII. Backup codes are stored hashed (scrypt). When
+  // totpEnabledAt is set, sign-in requires a valid 6-digit code.
+  totpSecretEnc          String?  @map("totp_secret_enc")
+  totpEnabledAt          DateTime? @map("totp_enabled_at")
+  totpBackupCodesHashed  String[] @default([]) @map("totp_backup_codes_hashed")
+
+  // Tax forms (W-9 for US sellers, W-8BEN for foreign). Captured at
+  // /seller/tax. Required before payouts can run; gating happens in
+  // src/lib/payouts.ts. Legal name + TIN are encrypted; address is a
+  // narrow JSON blob.
+  taxFormType         String?   @map("tax_form_type")
+  taxLegalNameEnc     String?   @map("tax_legal_name_enc")
+  taxTinEnc           String?   @map("tax_tin_enc")
+  taxAddressJson      Json?     @map("tax_address_json")
+  taxFormSignedAt     DateTime? @map("tax_form_signed_at")
 
   // Email preferences
   emailUnsubscribedAt DateTime? @map("email_unsubscribed_at")
@@ -822,6 +845,11 @@ model Order {
   refundedAt              DateTime?         @map("refunded_at")
   nmiRefundId             String?           @map("nmi_refund_id")
   shippingAddress         String?           @map("shipping_address")
+  // Sales tax (cents) charged on this order, plus the 2-letter state
+  // code we used to look up the rate. taxJurisdiction is null when
+  // no tax was collected.
+  salesTaxCents           Int               @default(0) @map("sales_tax_cents")
+  taxJurisdiction         String?           @map("tax_jurisdiction")
   // Shipping (ShipStation). Tracking can live either directly on the
   // Order (single-item shipment) OR on a Shipment grouping multiple
   // orders from the same buyer (Whatnot-style bundle). When

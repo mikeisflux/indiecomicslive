@@ -45,10 +45,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        totp: { label: "Authenticator code", type: "text" },
       },
       authorize: async (raw) => {
         const email = String(raw?.email ?? "").trim().toLowerCase();
         const password = String(raw?.password ?? "");
+        const totp = String(raw?.totp ?? "").replace(/\s|-/g, "");
         if (!email || !password) return null;
 
         // Admin env override — gives staff access via ADMIN_EMAIL +
@@ -84,6 +86,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!user || !user.passwordHash) return null;
         const ok = await verifyAdminPassword(password, user.passwordHash);
         if (!ok) return null;
+
+        // 2FA gate: when totpEnabledAt is set, also validate either a
+        // current 6-digit TOTP or a one-shot backup code. Returning
+        // null causes Auth.js to surface a generic "invalid
+        // credentials" error — the sign-in page should always render
+        // the TOTP field so the second factor can be supplied.
+        if (user.totpEnabledAt && user.totpSecretEnc) {
+          if (!totp) return null;
+          const { verifyTotp, hashBackupCode } = await import("@/lib/totp");
+          const { decryptCredential } = await import("@/lib/encryption");
+          const secret = Buffer.from(
+            decryptCredential(user.totpSecretEnc),
+            "base64",
+          );
+          let totpOk = verifyTotp(secret, totp);
+          if (!totpOk) {
+            const hashed = hashBackupCode(totp);
+            if (user.totpBackupCodesHashed.includes(hashed)) {
+              totpOk = true;
+              await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  totpBackupCodesHashed: user.totpBackupCodesHashed.filter(
+                    (h) => h !== hashed,
+                  ),
+                },
+              });
+            }
+          }
+          if (!totpOk) return null;
+        }
+
         return {
           id: user.id,
           email: user.email,

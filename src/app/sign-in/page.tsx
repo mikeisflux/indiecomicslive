@@ -76,6 +76,7 @@ export default async function SignIn({
             await signIn("credentials", {
               email: formData.get("email"),
               password: formData.get("password"),
+              totp: formData.get("totp"),
               redirectTo: next,
             });
           } catch (err) {
@@ -107,6 +108,14 @@ export default async function SignIn({
           required
           autoFocus={!!sp.email}
           placeholder="Password"
+          className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
+        />
+        <input
+          name="totp"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="Authenticator code (only if you set up 2FA)"
           className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm"
         />
         <RecaptchaWidget siteKey={siteKey} />

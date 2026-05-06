@@ -110,6 +110,21 @@ export async function processWeeklyPayouts(): Promise<ProcessResult> {
       continue;
     }
 
+    // Tax-form gate. We can't 1099-K a seller we don't have a TIN for,
+    // so payouts are paused (not failed) until they finish /seller/tax.
+    const sellerRow = await prisma.user.findUnique({
+      where: { id: summary.sellerId },
+      select: { taxFormSignedAt: true },
+    });
+    if (!sellerRow?.taxFormSignedAt) {
+      result.details.push({
+        sellerId: summary.sellerId,
+        status: "skipped",
+        reason: "tax_form_missing",
+      });
+      continue;
+    }
+
     // Reserve a Payout row first so the orders are atomically tied to
     // it. If the DC dispatch fails we mark Payout.failed; we do NOT
     // free the orders, because that would let a retry double-pay if

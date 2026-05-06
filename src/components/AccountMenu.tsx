@@ -133,6 +133,17 @@ export default function AccountMenu({
                 <MenuLink href="/account/saved-searches" onClick={close}>
                   Saved searches
                 </MenuLink>
+                <MenuLink href="/account/security" onClick={close}>
+                  Security · 2FA
+                </MenuLink>
+                <MenuLink href="/feed" onClick={close}>
+                  Your feed
+                </MenuLink>
+                {isApprovedSeller && (
+                  <MenuLink href="/seller/tax" onClick={close}>
+                    Tax info (W-9)
+                  </MenuLink>
+                )}
               </ul>
             </div>
 
