@@ -130,6 +130,9 @@ export default function AccountMenu({
                 <MenuLink href="/account/messages" onClick={close}>
                   Messages
                 </MenuLink>
+                <MenuLink href="/account/saved-searches" onClick={close}>
+                  Saved searches
+                </MenuLink>
               </ul>
             </div>
 
