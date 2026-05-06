@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getShippoWebhookSecret } from "@/lib/shippo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ interface ShippoWebhook {
 export async function POST(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
-  const expected = process.env.SHIPPO_WEBHOOK_SECRET;
+  const expected = await getShippoWebhookSecret();
   if (!expected || token !== expected) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

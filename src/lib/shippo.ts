@@ -18,10 +18,52 @@
 
 const BASE = "https://api.goshippo.com";
 
-function authHeader(): string | null {
-  const key = process.env.SHIPPO_API_KEY;
+import { prisma } from "@/lib/prisma";
+
+// Cache the resolved config briefly so high-traffic flows (rate
+// quotes during a busy show) don't hammer Postgres for the same
+// platform-settings row. 30 seconds is plenty.
+let cached: { value: { apiKey: string | null }; at: number } | null = null;
+const CACHE_MS = 30_000;
+
+async function resolveApiKey(): Promise<string | null> {
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.value.apiKey;
+  let apiKey: string | null = null;
+  try {
+    const row = await prisma.platformSetting.findUnique({
+      where: { id: "default" },
+      select: { shippoApiKey: true },
+    });
+    if (row?.shippoApiKey) apiKey = row.shippoApiKey;
+  } catch {
+    // DB down: env-only path still works.
+  }
+  if (!apiKey && process.env.SHIPPO_API_KEY) apiKey = process.env.SHIPPO_API_KEY;
+  cached = { value: { apiKey }, at: Date.now() };
+  return apiKey;
+}
+
+export function invalidateShippoCache(): void {
+  cached = null;
+}
+
+async function authHeader(): Promise<string | null> {
+  const key = await resolveApiKey();
   if (!key) return null;
   return `ShippoToken ${key}`;
+}
+
+export async function getShippoWebhookSecret(): Promise<string | null> {
+  try {
+    const row = await prisma.platformSetting.findUnique({
+      where: { id: "default" },
+      select: { shippoWebhookSecret: true },
+    });
+    if (row?.shippoWebhookSecret) return row.shippoWebhookSecret;
+  } catch {
+    /* fall through */
+  }
+  return process.env.SHIPPO_WEBHOOK_SECRET ?? null;
 }
 
 export interface ShippoAddress {
@@ -85,7 +127,7 @@ async function call<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
-  const auth = authHeader();
+  const auth = await authHeader();
   if (!auth) return { ok: false, status: 0, error: "Shippo not configured" };
   const r = await fetch(`${BASE}${path}`, {
     ...init,

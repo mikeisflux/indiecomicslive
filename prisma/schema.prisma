@@ -84,6 +84,14 @@ model PlatformSetting {
   recaptchaSiteKey   String? @map("recaptcha_site_key")
   recaptchaSecretKey String? @map("recaptcha_secret_key")
 
+  // Shippo. Master account model — one live token here, sellers
+  // print labels through our UI. Webhook secret is the shared token
+  // we put in the Shippo dashboard webhook URL. Configure at
+  // /admin/settings/shipping. Fallback to SHIPPO_API_KEY /
+  // SHIPPO_WEBHOOK_SECRET env vars when these are null.
+  shippoApiKey       String? @map("shippo_api_key")
+  shippoWebhookSecret String? @map("shippo_webhook_secret")
+
   updatedAt DateTime @updatedAt @map("updated_at")
   updatedBy String?  @map("updated_by") @db.Uuid
 
