@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import OrderActions from "./OrderActions";
+import ReviewForm from "./ReviewForm";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function OrderPage({
         },
       },
       seller: { select: { handle: true, name: true } },
+      review: { select: { rating: true, body: true } },
     },
   });
   if (!order) notFound();
@@ -127,6 +129,12 @@ export default async function OrderPage({
             Description
           </h2>
           <p>{order.lot.description}</p>
+        </div>
+      )}
+
+      {(order.deliveredAt || order.status === "delivered") && (
+        <div className="mt-8">
+          <ReviewForm orderId={order.id} initial={order.review} />
         </div>
       )}
 

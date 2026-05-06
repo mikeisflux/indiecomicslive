@@ -235,6 +235,8 @@ model User {
   sentMessages      Message[]           @relation("Sender")
   watchedLots       WatchedLot[]
   watchedShows      WatchedShow[]
+  reviewsAsBuyer    Review[]            @relation("ReviewBuyer")
+  reviewsAsSeller   Review[]            @relation("ReviewSeller")
   passwordResetTokens PasswordResetToken[]
   chatMessages      ChatMessage[]
   paymentMethods    UserPaymentMethod[]
@@ -687,6 +689,7 @@ model Order {
   seller    User      @relation("Seller", fields: [sellerId], references: [id])
   payout    Payout?   @relation(fields: [payoutId], references: [id])
   shipment  Shipment? @relation(fields: [shipmentId], references: [id])
+  review    Review?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -719,6 +722,28 @@ model Shipment {
   @@index([sellerId, buyerId])
   @@index([trackingNumber])
   @@map("shipments")
+}
+
+// Buyer-authored review of the seller after a delivered order. One
+// review per order — orderId is unique. Surfaces on /shop/[handle]
+// as a star average + count plus the most-recent comments.
+model Review {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  buyerId   String   @map("buyer_id") @db.Uuid
+  sellerId  String   @map("seller_id") @db.Uuid
+  rating    Int      // 1..5
+  body      String?  // optional text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buyer  User  @relation("ReviewBuyer", fields: [buyerId], references: [id])
+  seller User  @relation("ReviewSeller", fields: [sellerId], references: [id])
+
+  @@index([sellerId, createdAt])
+  @@index([buyerId])
+  @@map("reviews")
 }
 
 // One row per seller per weekly batch (Thursday). Holds the aggregated
