@@ -26,7 +26,7 @@ export default async function SellerShopPage() {
       <div className="mb-6 flex items-end justify-between">
         <div>
           <Link href="/seller" className="text-sm text-paper/60 hover:text-paper">
-            ← Seller
+            ← Seller Dashboard
           </Link>
           <h1 className="mt-2 text-2xl font-bold">24/7 Shop</h1>
           <p className="mt-1 text-sm text-paper/60">

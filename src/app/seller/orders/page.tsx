@@ -42,7 +42,10 @@ export default async function SellerOrders() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 pb-20 pt-8">
-      <div className="mb-6 flex items-end justify-between">
+      <Link href="/seller" className="text-sm text-paper/60 hover:text-paper">
+        ← Seller Dashboard
+      </Link>
+      <div className="mb-6 mt-3 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold">Orders</h1>
           <p className="mt-1 text-sm text-paper/60">

@@ -44,8 +44,8 @@ export default async function SellerApplyPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-20 pt-8">
-      <a href="/sell" className="text-sm text-paper/60">
-        ← About selling
+      <a href="/" className="text-sm text-paper/60 hover:text-paper">
+        ← Home
       </a>
       <h1 className="mt-3 text-3xl font-bold">Apply to sell</h1>
       <p className="mt-2 max-w-xl text-sm text-paper/70">

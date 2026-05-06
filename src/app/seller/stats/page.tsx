@@ -42,7 +42,7 @@ export default async function SellerStatsPage({
             href="/seller"
             className="text-sm text-paper/60 hover:text-paper"
           >
-            ← Seller
+            ← Seller Dashboard
           </Link>
           <h1 className="mt-2 text-2xl font-bold">Stats</h1>
           <p className="mt-1 text-sm text-paper/60">

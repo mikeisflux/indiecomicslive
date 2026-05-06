@@ -9,8 +9,8 @@ export default function LegalLayout({
   return (
     <div className="mx-auto max-w-6xl px-4 pb-20 pt-8">
       <nav className="mb-6 flex items-center justify-between">
-        <Link href="/" className="text-sm text-paper/60">
-          ← Indie Comics Live
+        <Link href="/" className="text-sm text-paper/60 hover:text-paper">
+          ← Home
         </Link>
         <Link
           href="/about"

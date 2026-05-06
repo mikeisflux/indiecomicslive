@@ -32,7 +32,7 @@ export default async function NotificationsPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-20 pt-8">
       <Link href="/account" className="text-sm text-paper/60 hover:text-paper">
-        ← Profile
+        ← Buyer Dashboard
       </Link>
       <h1 className="mt-3 text-2xl font-bold">Notifications</h1>
 

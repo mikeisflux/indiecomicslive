@@ -38,8 +38,8 @@ export default function AboutPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
       />
       <main className="mx-auto max-w-3xl px-4 pb-20 pt-10">
-        <Link href="/" className="text-sm text-paper/60">
-          ← Back
+        <Link href="/" className="text-sm text-paper/60 hover:text-paper">
+          ← Home
         </Link>
 
         <p className="mt-6 mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent">

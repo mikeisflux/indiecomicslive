@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
@@ -28,7 +29,10 @@ export default async function SellerShowPage({
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
-      <h1 className="mb-1 text-2xl font-bold">{show.title}</h1>
+      <Link href="/seller" className="text-sm text-paper/60 hover:text-paper">
+        ← Seller Dashboard
+      </Link>
+      <h1 className="mb-1 mt-3 text-2xl font-bold">{show.title}</h1>
       <p className="mb-6 text-xs text-paper/60">{show.status}</p>
       <SellerControls
         show={{

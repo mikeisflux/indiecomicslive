@@ -52,7 +52,7 @@ export default async function SellerOrderDetail({
   return (
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
       <Link href="/seller/orders" className="text-sm text-paper/60 hover:text-paper">
-        ← Orders
+        ← Seller Orders
       </Link>
 
       <h1 className="mt-3 text-2xl font-bold">{order.lot.title || "(untitled lot)"}</h1>

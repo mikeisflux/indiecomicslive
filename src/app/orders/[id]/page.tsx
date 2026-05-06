@@ -55,8 +55,8 @@ export default async function OrderPage({
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-20 pt-8">
-      <a href="/orders" className="text-sm text-paper/60">
-        ← All orders
+      <a href="/orders" className="text-sm text-paper/60 hover:text-paper">
+        ← Buyer Dashboard
       </a>
       <h1 className="mt-3 mb-1 text-2xl font-bold">{order.lot.title}</h1>
       <p className="mb-6 text-xs text-paper/60">

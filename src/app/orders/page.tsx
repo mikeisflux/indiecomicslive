@@ -98,7 +98,10 @@ export default async function BuyerDashboard() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 pb-20 pt-8">
-      <div className="mb-6 flex items-end justify-between">
+      <Link href="/" className="text-sm text-paper/60 hover:text-paper">
+        ← Home
+      </Link>
+      <div className="mb-6 mt-3 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold">Buyer dashboard</h1>
           <p className="mt-1 text-sm text-paper/60">

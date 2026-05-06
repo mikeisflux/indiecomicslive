@@ -19,7 +19,10 @@ export default async function SellerDashboard() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-20 pt-8">
-      <h1 className="mb-6 text-2xl font-bold">Seller dashboard</h1>
+      <Link href="/" className="text-sm text-paper/60 hover:text-paper">
+        ← Home
+      </Link>
+      <h1 className="mb-6 mt-3 text-2xl font-bold">Seller dashboard</h1>
 
       <div className="mb-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Link

@@ -50,8 +50,12 @@ export default async function AdminLayout({
           </span>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Link href="/" className="text-paper/60 hover:text-paper">
-            View site
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-paper/60 hover:text-paper"
+          >
+            <span aria-hidden>←</span>
+            Home
           </Link>
           <span className="text-paper/30">·</span>
           <span className="text-paper/60">{me.email}</span>

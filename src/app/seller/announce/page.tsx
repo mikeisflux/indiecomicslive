@@ -35,7 +35,7 @@ export default async function AnnouncePage() {
         href="/seller"
         className="text-sm text-paper/60 hover:text-paper"
       >
-        ← Seller hub
+        ← Seller Dashboard
       </Link>
       <h1 className="mt-3 text-2xl font-bold">Announce to followers</h1>
       <p className="mt-1 text-sm text-paper/60">

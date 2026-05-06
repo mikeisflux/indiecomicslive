@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import { loadNmiConfig } from "@/lib/nmi";
 import { getActiveProcessor, getDivinityCoinConfig } from "@/lib/divinitycoin";
@@ -27,7 +28,10 @@ export default async function PaymentMethodPage() {
   if (blocking) {
     return (
       <main className="mx-auto max-w-md px-4 pt-10">
-        <h1 className="mb-4 text-2xl font-bold">Payment method</h1>
+        <Link href="/account" className="text-sm text-paper/60 hover:text-paper">
+          ← Buyer Dashboard
+        </Link>
+        <h1 className="mb-4 mt-3 text-2xl font-bold">Payment method</h1>
         <p className="text-sm text-paper/60">{blocking}</p>
       </main>
     );
@@ -35,7 +39,10 @@ export default async function PaymentMethodPage() {
 
   return (
     <main className="mx-auto max-w-md px-4 pt-10 pb-20">
-      <h1 className="mb-1 text-2xl font-bold">Payment method</h1>
+      <Link href="/account" className="text-sm text-paper/60 hover:text-paper">
+        ← Buyer Dashboard
+      </Link>
+      <h1 className="mb-1 mt-3 text-2xl font-bold">Payment method</h1>
       <p className="mb-6 text-sm text-paper/60">
         Save a card to bid on lots. Auction wins charge automatically.
       </p>
