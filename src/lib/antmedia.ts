@@ -50,6 +50,25 @@ export function baseUrl(config: AntMediaConfig, scheme: "https" | "wss") {
   return `${scheme}://${config.host}:${config.port}/${config.app}`;
 }
 
+// AMS Enterprise's REST API has two filters that can be enabled
+// independently in the dashboard: an IP allowlist and a JWT filter.
+// When either is on, requests need a JWT signed by the configured
+// REST secret in the Authorization header. We sign a short-lived
+// HS256 token so the probe + management calls survive both filters.
+function signRestJwt(secret: string, ttlSeconds = 300): string {
+  const header = { alg: "HS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { iat: now, exp: now + ttlSeconds };
+  const enc = (o: object) =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
+  const data = `${enc(header)}.${enc(payload)}`;
+  // Use require to avoid pulling crypto at module-load time.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
+  const sig = createHmac("sha256", secret).update(data).digest("base64url");
+  return `${data}.${sig}`;
+}
+
 export type TokenType = "publish" | "play";
 
 export async function signStreamToken(opts: {
@@ -189,16 +208,17 @@ export async function probeAntMediaVersion(
   latencyMs?: number;
   error?: string;
 }> {
-  // Per-app /version is unauthenticated on AMS Enterprise (2.16+).
-  // Don't send any Authorization header here — AMS's REST filter
-  // rejects ANY request that carries an unrecognized auth header
-  // even on otherwise-public endpoints. (The legacy ANT_MEDIA_REST_USER
-  // / ANT_MEDIA_REST_PASS env vars are still kept on AntMediaConfig
-  // for other endpoints that genuinely require auth.)
+  // AMS Enterprise gates the per-app REST endpoints behind two
+  // optional filters (IP allowlist + JWT). We always sign an HS256
+  // JWT with ANT_MEDIA_JWT_SECRET — that's the secret AMS expects
+  // for the JWT REST filter, and the JWT path also bypasses the IP
+  // filter when both are on.
   const url = `${baseUrl(config, "https")}/rest/v2/version`;
   const t0 = Date.now();
   try {
+    const jwt = signRestJwt(config.jwtSecret);
     const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${jwt}` },
       signal: AbortSignal.timeout(5000),
     });
     const latencyMs = Date.now() - t0;
@@ -250,11 +270,11 @@ export async function getBroadcastStatus(
   config: AntMediaConfig,
   streamId: string,
 ): Promise<{ status: string | null; viewerCount: number | null } | null> {
-  if (!config.restAuth) return null;
   const url = `${baseUrl(config, "https")}/rest/v2/broadcasts/${encodeURIComponent(streamId)}`;
   try {
+    const jwt = signRestJwt(config.jwtSecret);
     const res = await fetch(url, {
-      headers: { Authorization: `Basic ${config.restAuth}` },
+      headers: { Authorization: `Bearer ${jwt}` },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as {
