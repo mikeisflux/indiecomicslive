@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import PWARegister from "@/components/PWARegister";
-import AgeGate from "@/components/AgeGate";
+import StreakBackground from "@/components/StreakBackground";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomicslive.com";
@@ -103,8 +103,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-dvh">
-        <AgeGate />
-        {children}
+        <StreakBackground />
+        <div className="relative z-10 min-h-dvh">{children}</div>
         <PWARegister />
       </body>
     </html>

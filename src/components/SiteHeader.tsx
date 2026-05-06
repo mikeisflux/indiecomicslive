@@ -107,11 +107,38 @@ export default async function SiteHeader() {
   }
 
   return (
-    <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-6">
-      <Link href="/" className="text-lg font-bold tracking-tight">
+    <header className="sticky top-0 z-30 mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 backdrop-blur-md sm:gap-4">
+      <Link
+        href="/"
+        className="shrink-0 text-base font-black tracking-tight sm:text-lg"
+      >
         Indie Comics <span className="text-accent">Live</span>
       </Link>
+      <form
+        action="/search"
+        className="relative hidden max-w-sm flex-1 items-center md:flex"
+      >
+        <input
+          name="q"
+          placeholder="Search lots, shops, categories…"
+          className="w-full rounded-full border border-white/10 bg-black/40 px-4 py-1.5 pr-9 text-sm placeholder:text-paper/40 focus:border-accent/60 focus:outline-none"
+        />
+        <button
+          type="submit"
+          aria-label="Search"
+          className="absolute right-2 text-paper/50 hover:text-paper"
+        >
+          ⌕
+        </button>
+      </form>
       <nav className="flex items-center gap-2 text-sm">
+        <Link
+          href="/search"
+          aria-label="Search"
+          className="rounded-full border border-white/10 px-3 py-1.5 md:hidden"
+        >
+          ⌕
+        </Link>
         {!isApprovedSeller && (
           <Link
             href="/sell"

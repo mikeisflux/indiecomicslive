@@ -562,6 +562,10 @@ model Lot {
   // sellerId is denormalized here so a single index works for both
   // shop browse and admin lookups.
   sellerId          String?   @map("seller_id") @db.Uuid
+  // Optional taxonomy. categoryId is one slot in the Category tree;
+  // tags is a free-form set used for faceted /search filtering.
+  categoryId        String?   @map("category_id") @db.Uuid
+  tags              String[]  @default([])
   position          Int
   kind              LotKind   @default(auction)
   title             String
@@ -596,6 +600,7 @@ model Lot {
 
   show          Show?   @relation(fields: [showId], references: [id], onDelete: Cascade)
   seller        User?   @relation("LotSeller", fields: [sellerId], references: [id])
+  category      Category? @relation(fields: [categoryId], references: [id])
   currentBidder User?   @relation("HighBidder", fields: [currentBidUserId], references: [id])
   bids          Bid[]
   orders        Order[]
@@ -610,8 +615,30 @@ model Lot {
   @@index([showId])
   @@index([sellerId, status])
   @@index([kind, status])
+  @@index([categoryId])
   @@index([status])
   @@map("lots")
+}
+
+// Browseable taxonomy. Two-level: a parent (Comics, Cards, Art Books,
+// Originals, Collectibles) and zero-or-more children (Indie, Manga,
+// NSFW, Pokémon, etc.). Sellers pick one Category per lot. The
+// homepage browse strip + /search facet read from this table.
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  name      String
+  parentId  String?  @map("parent_id") @db.Uuid
+  position  Int      @default(0)
+  iconEmoji String?  @map("icon_emoji")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryParent")
+  lots     Lot[]
+
+  @@index([parentId])
+  @@map("categories")
 }
 
 // Gallery image attached to a Lot. The Lot's primary image lives on
