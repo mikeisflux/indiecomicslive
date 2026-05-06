@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import PWARegister from "@/components/PWARegister";
 import StreakBackground from "@/components/StreakBackground";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import { ToasterProvider } from "@/components/Toaster";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://indiecomicslive.com";
@@ -102,9 +104,12 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
       </head>
-      <body className="min-h-dvh">
+      <body className="min-h-dvh pb-16 md:pb-0">
         <StreakBackground />
-        <div className="relative z-10 min-h-dvh">{children}</div>
+        <ToasterProvider>
+          <div className="relative z-10 min-h-dvh">{children}</div>
+        </ToasterProvider>
+        <MobileBottomNav />
         <PWARegister />
       </body>
     </html>

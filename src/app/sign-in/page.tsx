@@ -47,15 +47,25 @@ export default async function SignIn({
           : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6">
-      <h1 className="mb-2 text-2xl font-bold">Sign in</h1>
-      <p className="mb-6 text-sm text-paper/60">
-        New here?{" "}
-        <Link href={`/sign-up?callbackUrl=${encodeURIComponent(next)}`} className="text-accent hover:underline">
-          Create an account
+    <main className="relative mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
+      <div className="icl-glass icl-fade-up rounded-3xl p-7">
+        <Link
+          href="/"
+          className="mb-4 inline-block text-xs font-bold uppercase tracking-[0.25em] text-accent"
+        >
+          ← Indie Comics Live
         </Link>
-        .
-      </p>
+        <h1 className="text-3xl font-black">Welcome back</h1>
+        <p className="mb-5 mt-1 text-sm text-paper/60">
+          New here?{" "}
+          <Link
+            href={`/sign-up?callbackUrl=${encodeURIComponent(next)}`}
+            className="text-accent hover:underline"
+          >
+            Create an account
+          </Link>
+          .
+        </p>
 
       <form
         action={async (formData) => {
@@ -120,16 +130,17 @@ export default async function SignIn({
         />
         <RecaptchaWidget siteKey={siteKey} />
         {errorMsg && <p className="text-sm text-red-300">{errorMsg}</p>}
-        <button className="w-full rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white">
-          Sign in
+        <button className="w-full rounded-full bg-accent px-5 py-3 text-sm font-bold text-white shadow-[0_0_24px_rgba(255,51,102,0.45)] transition hover:shadow-[0_0_36px_rgba(255,51,102,0.65)]">
+          Sign in →
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-paper/50">
-        <Link href="/forgot-password" className="hover:text-paper">
-          Forgot password?
-        </Link>
-      </p>
+        <p className="mt-6 text-center text-xs text-paper/50">
+          <Link href="/forgot-password" className="hover:text-paper">
+            Forgot password?
+          </Link>
+        </p>
+      </div>
     </main>
   );
 }

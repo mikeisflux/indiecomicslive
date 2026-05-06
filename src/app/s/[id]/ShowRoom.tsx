@@ -6,6 +6,7 @@ import ReactionLayer, { ReactionBar } from "./ReactionLayer";
 import WatchButton from "@/components/WatchButton";
 import AutoBidButton from "@/components/AutoBidButton";
 import ShowSideWidgets from "@/components/ShowSideWidgets";
+import VictoryBurst from "@/components/VictoryBurst";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -77,6 +78,7 @@ export default function ShowRoom({
   const [reactions, setReactions] = useState<
     { id: string; kind: string; at: number }[]
   >([]);
+  const [victoryAt, setVictoryAt] = useState(0);
 
   function pushReaction(kind: string) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -119,6 +121,9 @@ export default function ShowRoom({
           endsAt: msg.endsAt,
           bidCount: msg.bidCount,
         });
+        if (msg.currentBidUserId === userId) {
+          setVictoryAt(Date.now());
+        }
       } else if (msg.type === "pin") {
         setPinnedLot(resolveLot(msg.lotId));
       } else if (msg.type === "chat_overlay") {
@@ -200,6 +205,7 @@ export default function ShowRoom({
         <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
         <ReactionLayer reactions={reactions} />
         <ReactionBar onTap={sendReaction} />
+        <VictoryBurst trigger={victoryAt} />
         {chatOverlayEnabled && chat.length > 0 && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 overflow-hidden bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
             <ul className="flex h-full flex-col-reverse gap-1 overflow-hidden text-sm">
