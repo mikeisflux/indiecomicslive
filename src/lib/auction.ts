@@ -145,16 +145,22 @@ export async function closeLot(lotId: string) {
 
       const showRow = await tx.lot.findUnique({
         where: { id: lotId },
-        select: { show: { select: { sellerId: true } } },
+        select: {
+          shippingCostCents: true,
+          show: { select: { sellerId: true } },
+        },
       });
 
       if (showRow?.show) {
+        const shipping = showRow.shippingCostCents ?? 0;
         const order = await tx.order.create({
           data: {
             lotId,
             buyerId: lot.current_bid_user_id,
             sellerId: showRow.show.sellerId,
-            amountCents: lot.current_bid_cents,
+            // Total charged to the winning bidder = winning bid + shipping.
+            amountCents: lot.current_bid_cents + shipping,
+            shippingCents: shipping,
             status: "pending_payment",
           },
           select: { id: true },

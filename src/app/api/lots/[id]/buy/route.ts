@@ -32,6 +32,7 @@ export async function POST(
       sellerId: true,
       showId: true,
       title: true,
+      shippingCostCents: true,
     },
   });
   if (!lot) {
@@ -90,12 +91,14 @@ export async function POST(
         data: { status: "sold", soldAt: new Date() },
       });
     }
+    const shipping = lot.shippingCostCents ?? 0;
     return tx.order.create({
       data: {
         lotId,
         buyerId: session.user.id,
         sellerId: lot.sellerId!,
-        amountCents: lot.buyNowCents!,
+        amountCents: lot.buyNowCents! + shipping,
+        shippingCents: shipping,
         status: "pending_payment",
       },
     });

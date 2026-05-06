@@ -21,6 +21,7 @@ const Body = z
     softCloseSeconds: z.number().int().min(3).max(60).optional(),
     buyNowCents: z.number().int().positive().optional(),
     inventoryCount: z.number().int().positive().optional(),
+    shippingCostCents: z.number().int().nonnegative().max(100_000).optional(),
     // Mystery-only: revealed-on-purchase contents.
     mysteryContentsHtml: z.string().max(50_000).optional(),
     mysteryItemCount: z.number().int().positive().max(50).optional(),
@@ -55,6 +56,14 @@ export async function POST(req: Request) {
 
   let sellerId: string;
   let nextPos: number;
+  let defaultShipping = 0;
+  // Look up the seller's default shipping cost so we can fall back to
+  // it when the form didn't include one.
+  const sellerForDefault = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { defaultShippingCents: true },
+  });
+  defaultShipping = sellerForDefault?.defaultShippingCents ?? 0;
 
   if (parsed.data.showId) {
     const show = await prisma.show.findUnique({
@@ -94,6 +103,7 @@ export async function POST(req: Request) {
       softCloseSeconds: parsed.data.softCloseSeconds ?? 10,
       buyNowCents: parsed.data.buyNowCents ?? null,
       inventoryCount: parsed.data.inventoryCount ?? 1,
+      shippingCostCents: parsed.data.shippingCostCents ?? defaultShipping,
       mysteryContentsHtml:
         parsed.data.kind === "mystery"
           ? sanitizeMysteryHtml(parsed.data.mysteryContentsHtml ?? null) ||

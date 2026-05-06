@@ -236,6 +236,7 @@ function CreateLotForm({
   const [minIncrement, setMinIncrement] = useState("1.00");
   const [buyNow, setBuyNow] = useState("10.00");
   const [inventory, setInventory] = useState("1");
+  const [shippingCost, setShippingCost] = useState("0.00");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +285,7 @@ function CreateLotForm({
         kind,
         title,
         imageUrl,
+        shippingCostCents: Math.max(0, Math.round(Number(shippingCost) * 100)),
       };
       if (kind === "auction") {
         body.startingBidCents = Math.round(Number(startingBid) * 100);
@@ -408,6 +410,17 @@ function CreateLotForm({
           </label>
         </div>
       )}
+      <label className="block space-y-1 text-xs text-paper/60">
+        Shipping cost ($) — added to the buyer&rsquo;s total
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={shippingCost}
+          onChange={(e) => setShippingCost(e.target.value)}
+          className={inputClass}
+        />
+      </label>
       <label className="block space-y-1 text-xs text-paper/60">
         Cover image
         <input

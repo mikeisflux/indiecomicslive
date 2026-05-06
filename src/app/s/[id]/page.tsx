@@ -77,6 +77,7 @@ export default async function ShowPage({
         status: show.status,
         coverImageUrl: show.coverImageUrl,
         pinnedLotId: show.pinnedLotId,
+        chatOverlayEnabled: show.chatOverlayEnabled,
       }}
       seller={show.seller}
       liveLot={liveLot}

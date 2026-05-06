@@ -83,7 +83,12 @@ function clientIP(req: import("http").IncomingMessage): string | null {
   return req.socket.remoteAddress ?? null;
 }
 
-type ClientMeta = { userId?: string; showId?: string; ip?: string };
+type ClientMeta = {
+  userId?: string;
+  showId?: string;
+  ip?: string;
+  reactionTimes?: number[];
+};
 const clients = new Map<WebSocket, ClientMeta>();
 const rooms = new Map<string, Set<WebSocket>>();
 
@@ -114,6 +119,17 @@ function broadcast(showId: string, msg: unknown) {
   }
 }
 
+// Allowed sticker types for the floating-reaction layer (heart-spam
+// in the player). Add new stickers here + in the client viewer.
+const REACTION_KINDS = [
+  "heart",
+  "fire",
+  "wow",
+  "laugh",
+  "money",
+  "comic",
+] as const;
+
 const Inbound = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("hello"),
@@ -128,6 +144,10 @@ const Inbound = z.discriminatedUnion("type", [
     type: z.literal("bid"),
     lotId: z.string().uuid(),
     amountCents: z.number().int().positive(),
+  }),
+  z.object({
+    type: z.literal("reaction"),
+    kind: z.enum(REACTION_KINDS),
   }),
 ]);
 
@@ -213,6 +233,24 @@ wss.on("connection", async (ws, req) => {
         currentBidUserId: result.currentBidUserId,
         endsAt: result.endsAt,
         bidCount: result.bidCount,
+      });
+      return;
+    }
+
+    if (msg.type === "reaction") {
+      // Cap reactions at ~20/sec per user so one client can't flood
+      // the room. Tracked in a tiny in-memory bucket on the meta.
+      const now = Date.now();
+      meta.reactionTimes = (meta.reactionTimes ?? []).filter(
+        (t) => t > now - 1000,
+      );
+      if (meta.reactionTimes.length >= 20) return; // silently drop
+      meta.reactionTimes.push(now);
+      broadcast(meta.showId, {
+        type: "reaction",
+        kind: msg.kind,
+        userId: meta.userId,
+        at: now,
       });
       return;
     }

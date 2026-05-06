@@ -34,13 +34,35 @@ type Tab =
   | "settings";
 
 type Props = {
-  show: { id: string; status: string; pinnedLotId: string | null };
+  show: {
+    id: string;
+    status: string;
+    pinnedLotId: string | null;
+    chatOverlayEnabled: boolean;
+  };
   initialLots: Lot[];
 };
 
 export default function SellerControls({ show, initialLots }: Props) {
   const [tab, setTab] = useState<Tab>("stream");
   const [pinnedLotId, setPinnedLotId] = useState<string | null>(show.pinnedLotId);
+  const [chatOverlayEnabled, setChatOverlayEnabled] = useState(
+    show.chatOverlayEnabled,
+  );
+  const [chatOverlayBusy, setChatOverlayBusy] = useState(false);
+
+  async function toggleChatOverlay() {
+    const next = !chatOverlayEnabled;
+    setChatOverlayBusy(true);
+    setChatOverlayEnabled(next); // optimistic
+    const r = await fetch(`/api/seller/shows/${show.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chatOverlayEnabled: next }),
+    });
+    setChatOverlayBusy(false);
+    if (!r.ok) setChatOverlayEnabled(!next); // revert
+  }
 
   const tabs: { id: Tab; label: string; badge?: string }[] = [
     { id: "stream", label: "Stream" },
@@ -99,6 +121,31 @@ export default function SellerControls({ show, initialLots }: Props) {
             </p>
             <AntMediaPublisher showId={show.id} />
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Chat overlay</h3>
+                <p className="mt-1 text-xs text-paper/50">
+                  Pin recent chat to the lower 1/3 of the video so viewers
+                  see the conversation while watching.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleChatOverlay}
+                disabled={chatOverlayBusy}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold ${
+                  chatOverlayEnabled
+                    ? "bg-accent text-white"
+                    : "border border-white/15"
+                } disabled:opacity-50`}
+              >
+                {chatOverlayEnabled ? "On" : "Off"}
+              </button>
+            </div>
+          </div>
+
           <details className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
             <summary className="cursor-pointer text-sm font-semibold uppercase tracking-widest text-paper/60">
               Stream from OBS / external encoder

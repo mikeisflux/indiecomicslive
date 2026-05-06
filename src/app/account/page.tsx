@@ -27,6 +27,7 @@ export default async function AccountPage() {
       bio: true,
       location: true,
       websites: true,
+      defaultShippingCents: true,
     },
   });
   if (!me) redirect("/sign-in");

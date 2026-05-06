@@ -35,6 +35,7 @@ export default async function SellerShowPage({
           id: show.id,
           status: show.status,
           pinnedLotId: show.pinnedLotId,
+          chatOverlayEnabled: show.chatOverlayEnabled,
         }}
         initialLots={show.lots.map((l) => ({
           id: l.id,

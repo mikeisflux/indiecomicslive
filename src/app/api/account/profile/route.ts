@@ -19,6 +19,7 @@ const Body = z.object({
   bio: z.string().max(500).nullable().optional(),
   location: z.string().max(120).nullable().optional(),
   websites: z.array(z.string().url()).max(8).optional(),
+  defaultShippingCents: z.number().int().nonnegative().max(100_000).optional(),
 });
 
 const reservedHandles = new Set([
@@ -54,6 +55,9 @@ export async function PUT(req: Request) {
   if (parsed.data.bio !== undefined) data.bio = parsed.data.bio;
   if (parsed.data.location !== undefined) data.location = parsed.data.location;
   if (parsed.data.websites !== undefined) data.websites = parsed.data.websites;
+  if (parsed.data.defaultShippingCents !== undefined) {
+    data.defaultShippingCents = parsed.data.defaultShippingCents;
+  }
 
   if (parsed.data.handle !== undefined) {
     const h = parsed.data.handle;

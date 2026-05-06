@@ -237,6 +237,10 @@ model User {
   // Stored as JSON to keep the User row narrow:
   //   { name, company?, phone?, street1, street2?, city, state, postalCode, country }
   shipFromAddress   Json?               @map("ship_from_address")
+  // Default shipping cost (cents) pre-filled into new lots the seller
+  // creates. Per-lot shippingCostCents always wins; this is just a UX
+  // shortcut so they don't retype the same number on every lot.
+  defaultShippingCents Int              @default(0) @map("default_shipping_cents")
 
   @@index([deletedAt])
   @@index([lockedAt])
@@ -481,6 +485,10 @@ model Show {
   // window). Sellers can pin a lot to highlight it before its auction
   // starts (e.g. "Coming up next") or while a Buy-Now lot is open.
   pinnedLotId   String?    @map("pinned_lot_id") @db.Uuid
+  // When true, viewers in /s/[id] see a translucent chat overlay
+  // pinned to the lower 1/3 of the video player. Toggled by the
+  // seller from the Stream tab in the seller hub.
+  chatOverlayEnabled Boolean @default(false) @map("chat_overlay_enabled")
   createdAt     DateTime   @default(now()) @map("created_at")
 
   seller       User          @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
@@ -514,6 +522,10 @@ model Lot {
   // Buy-Now / mystery lot fields
   buyNowCents       Int?      @map("buy_now_cents")
   inventoryCount    Int       @default(1) @map("inventory_count")
+  // Per-lot shipping cost charged on top of the lot price (in cents).
+  // 0 = free shipping. Sellers set this when creating the lot;
+  // defaults to User.defaultShippingCents at create time.
+  shippingCostCents Int       @default(0) @map("shipping_cost_cents")
   // Mystery-specific: hidden contents revealed only after a successful
   // purchase. Stored as HTML (rich-text editor in seller UI). Buyers
   // see a generic placeholder until their order.status >= paid.
@@ -565,7 +577,12 @@ model Order {
   lotId                   String            @map("lot_id") @db.Uuid
   buyerId                 String            @map("buyer_id") @db.Uuid
   sellerId                String            @map("seller_id") @db.Uuid
+  // Total charged to the buyer in cents (lot price + shippingCents).
   amountCents             Int               @map("amount_cents")
+  // Portion of amountCents attributable to shipping (denormalized
+  // from Lot.shippingCostCents at order creation time so refunds
+  // and breakdowns work even if the lot is later edited).
+  shippingCents           Int               @default(0) @map("shipping_cents")
   status                  OrderStatus       @default(pending_payment)
   paymentProcessor        PaymentProcessor? @map("payment_processor")
   nmiCustomerVaultId      String?           @map("nmi_customer_vault_id")

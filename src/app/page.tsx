@@ -39,7 +39,9 @@ async function getLiveAndUpcoming() {
   return await prisma.show.findMany({
     where: { status: { in: ["live", "scheduled"] } },
     take: 40,
-    orderBy: [{ status: "desc" }, { scheduledFor: "desc" }],
+    // Live first; then upcoming sorted by soonest-first so the next
+    // scheduled show is at the top.
+    orderBy: [{ status: "desc" }, { scheduledFor: "asc" }],
     include: {
       seller: { select: { id: true, handle: true, name: true } },
     },

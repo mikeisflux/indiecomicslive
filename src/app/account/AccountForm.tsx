@@ -11,6 +11,7 @@ interface Initial {
   bio: string | null;
   location: string | null;
   websites: string[];
+  defaultShippingCents: number;
 }
 
 export default function AccountForm({ initial }: { initial: Initial }) {
@@ -21,6 +22,9 @@ export default function AccountForm({ initial }: { initial: Initial }) {
   const [bio, setBio] = useState(initial.bio ?? "");
   const [location, setLocation] = useState(initial.location ?? "");
   const [websites, setWebsites] = useState((initial.websites ?? []).join("\n"));
+  const [defaultShipping, setDefaultShipping] = useState(
+    ((initial.defaultShippingCents ?? 0) / 100).toFixed(2),
+  );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -43,6 +47,10 @@ export default function AccountForm({ initial }: { initial: Initial }) {
           .split(/\r?\n/)
           .map((s) => s.trim())
           .filter(Boolean),
+        defaultShippingCents: Math.max(
+          0,
+          Math.round(Number(defaultShipping) * 100) || 0,
+        ),
       }),
     });
     setBusy(false);
@@ -117,6 +125,19 @@ export default function AccountForm({ initial }: { initial: Initial }) {
           value={websites}
           onChange={(e) => setWebsites(e.target.value)}
           placeholder={"https://yoursite.com\nhttps://twitter.com/you"}
+        />
+      </div>
+      <div>
+        <label className={lbl}>
+          Default shipping cost ($) — pre-filled into new lots you create
+        </label>
+        <input
+          className={inp}
+          type="number"
+          min="0"
+          step="0.01"
+          value={defaultShipping}
+          onChange={(e) => setDefaultShipping(e.target.value)}
         />
       </div>
 

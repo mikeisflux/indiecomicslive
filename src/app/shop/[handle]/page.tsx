@@ -140,9 +140,16 @@ export default async function ShopPage({
                       </p>
                     )}
                     <div className="mt-3 flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-bold">
-                        {dollars(l.buyNowCents ?? 0)}
-                      </span>
+                      <div>
+                        <p className="font-mono text-sm font-bold">
+                          {dollars(l.buyNowCents ?? 0)}
+                        </p>
+                        <p className="text-[10px] text-paper/50">
+                          {l.shippingCostCents > 0
+                            ? `+ ${dollars(l.shippingCostCents)} shipping`
+                            : "Free shipping"}
+                        </p>
+                      </div>
                       <BuyNowButton lotId={l.id} />
                     </div>
                     <p className="mt-1 text-[10px] uppercase tracking-widest text-paper/40">

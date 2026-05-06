@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import StreamOverlay from "./StreamOverlay";
+import ReactionLayer, { ReactionBar } from "./ReactionLayer";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -30,6 +31,7 @@ type Props = {
     status: string;
     coverImageUrl: string | null;
     pinnedLotId: string | null;
+    chatOverlayEnabled: boolean;
   };
   seller: {
     handle: string | null;
@@ -62,6 +64,21 @@ export default function ShowRoom({
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [bidErr, setBidErr] = useState<string | null>(null);
+  const [chatOverlayEnabled, setChatOverlayEnabled] = useState(
+    show.chatOverlayEnabled,
+  );
+  const [reactions, setReactions] = useState<
+    { id: string; kind: string; at: number }[]
+  >([]);
+
+  function pushReaction(kind: string) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setReactions((r) => [...r.slice(-50), { id, kind, at: Date.now() }]);
+    // Self-clean after the animation duration.
+    setTimeout(() => {
+      setReactions((r) => r.filter((x) => x.id !== id));
+    }, 4000);
+  }
   const userId = useFakeUserId();
 
   // Resolve a pinned lotId from the WS to one of our cached lot rows.
@@ -97,6 +114,10 @@ export default function ShowRoom({
         });
       } else if (msg.type === "pin") {
         setPinnedLot(resolveLot(msg.lotId));
+      } else if (msg.type === "chat_overlay") {
+        setChatOverlayEnabled(!!msg.enabled);
+      } else if (msg.type === "reaction") {
+        pushReaction(String(msg.kind ?? "heart"));
       } else if (msg.type === "bid_rejected") {
         setBidErr(msg.reason);
         setTimeout(() => setBidErr(null), 2000);
@@ -126,6 +147,14 @@ export default function ShowRoom({
     );
   }
 
+  function sendReaction(kind: string) {
+    if (!wsRef.current) return;
+    wsRef.current.send(JSON.stringify({ type: "reaction", kind }));
+    // Optimistic local render so the user sees their own reaction
+    // even if the WS broadcast is briefly delayed.
+    pushReaction(kind);
+  }
+
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
@@ -144,6 +173,20 @@ export default function ShowRoom({
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
         <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
         <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
+        <ReactionLayer reactions={reactions} />
+        <ReactionBar onTap={sendReaction} />
+        {chatOverlayEnabled && chat.length > 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 overflow-hidden bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
+            <ul className="flex h-full flex-col-reverse gap-1 overflow-hidden text-sm">
+              {[...chat].slice(-12).reverse().map((m) => (
+                <li key={m.id} className="leading-tight">
+                  <span className="text-paper/60">@{m.userId.slice(0, 6)}</span>{" "}
+                  <span className="text-paper">{m.body}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <BidBar lot={lot} onBid={placeBid} bidErr={bidErr} />

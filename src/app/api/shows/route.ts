@@ -21,6 +21,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
+  // Cap each seller at 10 outstanding scheduled-but-not-started shows
+  // so they can't queue infinity placeholders.
+  const MAX_SCHEDULED = 10;
+  if (parsed.data.scheduledFor) {
+    const scheduledAt = new Date(parsed.data.scheduledFor);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return NextResponse.json(
+        { error: "invalid_schedule", message: "Bad scheduled date." },
+        { status: 400 },
+      );
+    }
+    if (scheduledAt.getTime() < Date.now() - 60 * 1000) {
+      return NextResponse.json(
+        { error: "schedule_in_past", message: "Scheduled time must be in the future." },
+        { status: 400 },
+      );
+    }
+    const scheduledCount = await prisma.show.count({
+      where: {
+        sellerId: session.user.id,
+        status: "scheduled",
+      },
+    });
+    if (scheduledCount >= MAX_SCHEDULED) {
+      return NextResponse.json(
+        {
+          error: "too_many_scheduled",
+          message: `You can have at most ${MAX_SCHEDULED} scheduled shows at a time. End or start an existing one first.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   const config = loadAntMediaConfig();
   if (!config) {
     return NextResponse.json(

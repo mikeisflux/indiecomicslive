@@ -56,6 +56,18 @@ export default async function OrderPage({
       )}
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        {order.shippingCents > 0 && (
+          <>
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-paper/60">Item</span>
+              <span>${((order.amountCents - order.shippingCents) / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-paper/60">Shipping</span>
+              <span>${(order.shippingCents / 100).toFixed(2)}</span>
+            </div>
+          </>
+        )}
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-paper/60">Total</span>
           <span className="text-xl font-bold">
