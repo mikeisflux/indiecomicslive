@@ -6,6 +6,7 @@ import AccountMenu, {
   type RecentShow,
 } from "@/components/AccountMenu";
 import NotificationBell from "@/components/NotificationBell";
+import ShareButtons from "@/components/ShareButtons";
 
 // Top nav for public pages. Reads the session server-side so the
 // signed-in/out state is correct on every render. Logs the resolved
@@ -140,6 +141,7 @@ export default async function SiteHeader() {
         >
           ⌕
         </Link>
+        <ShareButtons />
         {!isApprovedSeller && (
           <Link
             href="/sell"
