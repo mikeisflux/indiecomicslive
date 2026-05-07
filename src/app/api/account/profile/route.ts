@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 
 export const runtime = "nodejs";
 
@@ -79,10 +80,25 @@ export async function PUT(req: Request) {
     data.handle = h;
   }
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data,
-  });
+  // TOCTOU on handle: another account can grab the handle between the
+  // availability check above and this update. Catch P2002 + return 409.
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data,
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "handle_taken", message: "Another account just claimed that handle." },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ ok: true });
 }

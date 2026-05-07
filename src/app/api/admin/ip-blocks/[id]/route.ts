@@ -14,7 +14,9 @@ export async function DELETE(
   if (!block) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  await prisma.iPBlocklist.delete({ where: { id } });
+  // deleteMany for idempotency — concurrent unblock click won't 500
+  // on P2025 if the row was already removed.
+  await prisma.iPBlocklist.deleteMany({ where: { id } });
   await logAudit({
     actorId: me.id,
     action: "ip.unblock",

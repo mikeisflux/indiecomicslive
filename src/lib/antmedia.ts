@@ -62,10 +62,10 @@ export function signRestJwt(secret: string, ttlSeconds = 300): string {
   const enc = (o: object) =>
     Buffer.from(JSON.stringify(o)).toString("base64url");
   const data = `${enc(header)}.${enc(payload)}`;
-  // Use require to avoid pulling crypto at module-load time.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
-  const sig = createHmac("sha256", secret).update(data).digest("base64url");
+  const sig = crypto
+    .createHmac("sha256", secret)
+    .update(data)
+    .digest("base64url");
   return `${data}.${sig}`;
 }
 

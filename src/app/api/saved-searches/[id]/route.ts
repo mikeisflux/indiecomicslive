@@ -15,10 +15,14 @@ export async function DELETE(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const row = await prisma.savedSearch.findUnique({ where: { id } });
-  if (!row || row.userId !== session.user.id) {
+  // Ownership-scoped, idempotent delete: where filter pins userId so
+  // a user can't delete someone else's row, and `deleteMany` won't
+  // 500 on P2025 if a concurrent click already removed it.
+  const result = await prisma.savedSearch.deleteMany({
+    where: { id, userId: session.user.id },
+  });
+  if (result.count === 0) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  await prisma.savedSearch.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

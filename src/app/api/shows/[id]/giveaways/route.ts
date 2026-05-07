@@ -50,18 +50,40 @@ export async function POST(
   const closesAt = parsed.data.closesInSeconds
     ? new Date(Date.now() + parsed.data.closesInSeconds * 1000)
     : null;
-  const g = await prisma.giveaway.create({
-    data: {
-      showId: id,
-      hostId: session.user.id,
-      prize: parsed.data.prize,
-      description: parsed.data.description,
-      rules: parsed.data.rules,
-      closesAt,
-      status: "open",
+  // At most one open giveaway per show — concurrent "Start" clicks
+  // serialize and the second one returns 409 instead of inserting a
+  // duplicate row.
+  const g = await prisma.$transaction(
+    async (tx) => {
+      const conflict = await tx.giveaway.findFirst({
+        where: { showId: id, status: "open" },
+        select: { id: true },
+      });
+      if (conflict) return null;
+      return tx.giveaway.create({
+        data: {
+          showId: id,
+          hostId: session.user.id,
+          prize: parsed.data.prize,
+          description: parsed.data.description,
+          rules: parsed.data.rules,
+          closesAt,
+          status: "open",
+        },
+        select: { id: true },
+      });
     },
-    select: { id: true },
-  });
+    { isolationLevel: "Serializable" },
+  );
+  if (!g) {
+    return NextResponse.json(
+      {
+        error: "already_open",
+        message: "There's already an open giveaway on this show.",
+      },
+      { status: 409 },
+    );
+  }
   return NextResponse.json({ ok: true, id: g.id });
 }
 

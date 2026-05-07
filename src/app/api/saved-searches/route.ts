@@ -28,13 +28,6 @@ export async function POST(req: Request) {
 
   // Cap to 50 saved searches per user so a runaway client can't
   // accumulate forever.
-  const existing = await prisma.savedSearch.findFirst({
-    where: { userId: session.user.id, query },
-    select: { id: true },
-  });
-  if (existing) {
-    return NextResponse.json({ ok: true, id: existing.id, alreadySaved: true });
-  }
   const count = await prisma.savedSearch.count({
     where: { userId: session.user.id },
   });
@@ -47,8 +40,17 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
-  const row = await prisma.savedSearch.create({
-    data: { userId: session.user.id, query },
+
+  // Race-safe via the @@unique([userId, query]) constraint: an upsert
+  // collapses concurrent submits to a single row. The composite-key
+  // lookup name is `userId_query` (Prisma convention).
+  const row = await prisma.savedSearch.upsert({
+    where: {
+      userId_query: { userId: session.user.id, query },
+    },
+    update: {},
+    create: { userId: session.user.id, query },
+    select: { id: true },
   });
   return NextResponse.json({ ok: true, id: row.id });
 }

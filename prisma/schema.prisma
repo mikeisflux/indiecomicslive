@@ -1205,6 +1205,9 @@ model SavedSearch {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // No two rows for the same user with the same query — keeps the
+  // saved-search list deduped under concurrent submits.
+  @@unique([userId, query])
   @@index([userId])
   @@index([lastEmailedAt])
   @@map("saved_searches")
