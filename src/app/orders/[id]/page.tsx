@@ -5,6 +5,7 @@ import OrderActions from "./OrderActions";
 import ReviewForm from "./ReviewForm";
 import MessageSellerAboutOrderButton from "./MessageSellerAboutOrderButton";
 import DisputeForm from "./DisputeForm";
+import InsuranceClaimForm from "@/components/InsuranceClaimForm";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ export default async function OrderPage({
           body: true,
           createdAt: true,
         },
+      },
+      insuranceClaims: {
+        where: { status: { in: ["open", "approved"] } },
+        select: { id: true },
+        take: 1,
       },
     },
   });
@@ -168,6 +174,18 @@ export default async function OrderPage({
                   }
                 : null
             }
+          />
+        </div>
+      )}
+
+      {/* Insurance claim — for carrier loss / damage. Only meaningful
+          once a label is on the package. */}
+      {(order.shippedAt || order.status === "delivered") && (
+        <div className="mt-8">
+          <InsuranceClaimForm
+            orderId={order.id}
+            maxAmountCents={order.amountCents}
+            alreadyOpen={order.insuranceClaims.length > 0}
           />
         </div>
       )}

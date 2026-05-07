@@ -13,6 +13,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/support", label: "Support" },
+  { href: "/admin/insurance-claims", label: "Insurance claims" },
   { href: "/admin/chargebacks", label: "Chargebacks" },
   { href: "/admin/ip-blocks", label: "IP blocklist" },
   { href: "/admin/bot-block", label: "Bot blocker" },

@@ -297,6 +297,7 @@ model User {
   broadcasts        SellerBroadcast[]   @relation("SellerBroadcasts")
   supportTickets    SupportTicket[]     @relation("SupportTicketUser")
   supportMessages   SupportMessage[]    @relation("SupportMessageAuthor")
+  insuranceClaims   InsuranceClaim[]    @relation("InsuranceFiler")
 
   // Seller's return / ship-from address (used by ShipStation labels).
   // Stored as JSON to keep the User row narrow:
@@ -926,6 +927,7 @@ model Order {
   review    Review?
   dispute   OrderDispute?
   supportTickets SupportTicket[]
+  insuranceClaims InsuranceClaim[]
 
   @@index([buyerId])
   @@index([sellerId])
@@ -999,6 +1001,48 @@ enum OrderDisputeStatus {
   under_review
   resolved
   closed_no_action
+}
+
+// Insurance claim against the platform for an order that was lost or
+// damaged in transit. Distinct from OrderDispute (buyer ↔ seller);
+// insurance pays out of the rolling reserve / platform pocket. Filed
+// most often by sellers when the carrier dropped the ball.
+enum InsuranceClaimReason {
+  damaged_in_transit
+  lost_in_transit
+  carrier_loss
+  porch_theft
+  other
+}
+
+enum InsuranceClaimStatus {
+  open
+  approved
+  denied
+  paid
+}
+
+model InsuranceClaim {
+  id           String                 @id @default(uuid()) @db.Uuid
+  orderId      String                 @map("order_id") @db.Uuid
+  filedById    String                 @map("filed_by_id") @db.Uuid
+  reason       InsuranceClaimReason
+  description  String                 @db.Text
+  amountCents  Int                    @map("amount_cents")
+  status       InsuranceClaimStatus   @default(open)
+  decidedAt    DateTime?              @map("decided_at")
+  decidedById  String?                @map("decided_by_id") @db.Uuid
+  decisionNote String?                @map("decision_note") @db.Text
+  evidenceUrls String[]               @default([]) @map("evidence_urls")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+
+  order   Order @relation(fields: [orderId], references: [id])
+  filedBy User  @relation("InsuranceFiler", fields: [filedById], references: [id])
+
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@map("insurance_claims")
 }
 
 model OrderDispute {

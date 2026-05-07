@@ -294,7 +294,12 @@ export default async function ShopPage({
                             : "Free shipping"}
                         </p>
                       </div>
-                      <BuyNowButton lotId={l.id} />
+                      <BuyNowButton
+                        lotId={l.id}
+                        kind={l.kind as unknown as "buy_now" | "mystery" | "pack_break"}
+                        inventoryCount={l.inventoryCount}
+                        spotPriceCents={l.buyNowCents ?? 0}
+                      />
                     </div>
                     <p className="mt-1 text-[10px] uppercase tracking-widest text-paper/40">
                       {l.inventoryCount === 1

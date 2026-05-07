@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import ShipForm from "./ShipForm";
+import InsuranceClaimForm from "@/components/InsuranceClaimForm";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export default async function SellerOrderDetail({
     include: {
       lot: { select: { id: true, title: true } },
       buyer: { select: { name: true, email: true, handle: true } },
+      insuranceClaims: {
+        where: { status: { in: ["open", "approved"] } },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
   if (!order || order.sellerId !== me.id) notFound();
@@ -101,6 +107,16 @@ export default async function SellerOrderDetail({
             </a>
           )}
         </div>
+      )}
+
+      {(order.shippedAt || order.status === "delivered") && (
+        <section className="mt-6">
+          <InsuranceClaimForm
+            orderId={order.id}
+            maxAmountCents={order.amountCents}
+            alreadyOpen={order.insuranceClaims.length > 0}
+          />
+        </section>
       )}
 
       {!order.trackingNumber && (
