@@ -27,7 +27,7 @@ export interface SearchOpts {
   kind?: "auction" | "buy_now" | "mystery" | "pack_break" | "flash" | null;
   minCents?: number | null;
   maxCents?: number | null;
-  sort?: "newest" | "price_asc" | "price_desc" | "popular";
+  sort?: "newest" | "price_asc" | "price_desc" | "popular" | "hot";
 }
 
 export async function searchLots(
@@ -79,6 +79,14 @@ export async function searchLots(
     ],
   };
 
+  // "hot" silently widens to the last 7 days so the sort actually
+  // surfaces what's *currently* hot rather than a 6-month-old lot
+  // with ten bids. The orderBy then still uses bidCount + recency.
+  if (opts.sort === "hot") {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    (where.AND as unknown[]).push({ createdAt: { gte: sevenDaysAgo } });
+  }
+
   const orderBy =
     opts.sort === "price_asc"
       ? [{ buyNowCents: "asc" as const }, { startingBidCents: "asc" as const }]
@@ -87,7 +95,7 @@ export async function searchLots(
             { buyNowCents: "desc" as const },
             { startingBidCents: "desc" as const },
           ]
-        : opts.sort === "popular"
+        : opts.sort === "popular" || opts.sort === "hot"
           ? [{ bidCount: "desc" as const }, { createdAt: "desc" as const }]
           : [{ createdAt: "desc" as const }];
 

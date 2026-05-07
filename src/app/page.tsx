@@ -171,7 +171,7 @@ export default async function Home() {
             {categories.map((c) => (
               <Link
                 key={c.id}
-                href={`/search?cat=${c.slug}`}
+                href={`/category/${c.slug}`}
                 className="icl-glass group flex items-center gap-2 rounded-full px-4 py-2 text-sm transition hover:border-accent/50 hover:bg-accent/10"
               >
                 {c.iconEmoji && (
