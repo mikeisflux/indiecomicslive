@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AvatarUploader from "@/components/AvatarUploader";
 
 interface Initial {
   name: string | null;
@@ -92,13 +93,8 @@ export default function AccountForm({ initial }: { initial: Initial }) {
         <input className={inp} value={initial.email ?? ""} disabled />
       </div>
       <div>
-        <label className={lbl}>Avatar URL</label>
-        <input
-          className={inp}
-          value={image}
-          onChange={(e) => setImage(e.target.value)}
-          placeholder="https://…"
-        />
+        <label className={lbl}>Avatar</label>
+        <AvatarUploader value={image} onChange={setImage} disabled={busy} />
       </div>
       <div>
         <label className={lbl}>Bio</label>

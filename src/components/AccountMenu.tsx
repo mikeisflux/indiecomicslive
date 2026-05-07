@@ -113,28 +113,8 @@ export default function AccountMenu({
                 <MenuLink href="/account" onClick={close}>
                   Profile
                 </MenuLink>
-                <MenuLink href="/account/payment-method" onClick={close}>
-                  Payment method
-                </MenuLink>
-                {isApprovedSeller && (
-                  <MenuLink href="/seller/ship-from" onClick={close}>
-                    Return address
-                  </MenuLink>
-                )}
-                <MenuLink href="/account/addresses" onClick={close}>
-                  Shipping addresses
-                </MenuLink>
-                <MenuLink href="/account/notifications" onClick={close}>
-                  Notification settings
-                </MenuLink>
                 <MenuLink href="/account/messages" onClick={close}>
                   Messages
-                </MenuLink>
-                <MenuLink href="/account/saved-searches" onClick={close}>
-                  Saved searches
-                </MenuLink>
-                <MenuLink href="/account/security" onClick={close}>
-                  Security · 2FA
                 </MenuLink>
                 <MenuLink href="/feed" onClick={close}>
                   Your feed
@@ -142,11 +122,6 @@ export default function AccountMenu({
                 <MenuLink href="/account/help" onClick={close}>
                   Help · tickets
                 </MenuLink>
-                {isApprovedSeller && (
-                  <MenuLink href="/seller/tax" onClick={close}>
-                    Tax info (W-9)
-                  </MenuLink>
-                )}
               </ul>
             </div>
 

@@ -16,21 +16,33 @@ export default async function AccountPage() {
   if (!session?.user?.id) {
     redirect("/sign-in?callbackUrl=/account");
   }
-  const me = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      image: true,
-      handle: true,
-      bio: true,
-      location: true,
-      websites: true,
-      defaultShippingCents: true,
-    },
-  });
+  const [me, sellerApp] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        handle: true,
+        bio: true,
+        location: true,
+        websites: true,
+        defaultShippingCents: true,
+        role: true,
+      },
+    }),
+    prisma.sellerApplication.findUnique({
+      where: { userId: session.user.id },
+      select: { status: true },
+    }),
+  ]);
   if (!me) redirect("/sign-in");
+
+  const isApprovedSeller =
+    me.role === "admin" ||
+    me.role === "super_admin" ||
+    sellerApp?.status === "approved";
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-20 pt-8">
@@ -48,6 +60,14 @@ export default async function AccountPage() {
         <SubLink href="/account/addresses" label="Shipping addresses" />
         <SubLink href="/account/notifications" label="Notifications" />
         <SubLink href="/account/following" label="Following" />
+        <SubLink href="/account/saved-searches" label="Saved searches" />
+        <SubLink href="/account/security" label="Security · 2FA" />
+        {isApprovedSeller && (
+          <>
+            <SubLink href="/seller/ship-from" label="Return address" />
+            <SubLink href="/seller/tax" label="Tax info (W-9)" />
+          </>
+        )}
       </div>
     </main>
   );
