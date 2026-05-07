@@ -306,7 +306,7 @@ export async function startNextLot(showId: string, durationSeconds = 30) {
 export async function closeLot(lotId: string) {
   return await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<LockedLot[]>`
-      SELECT id, status, starting_bid_cents, min_increment_cents,
+      SELECT id, title, show_id, status, starting_bid_cents, min_increment_cents,
              soft_close_seconds, current_bid_cents, current_bid_user_id,
              ends_at, bid_count
       FROM lots WHERE id = ${lotId}::uuid FOR UPDATE
@@ -321,13 +321,22 @@ export async function closeLot(lotId: string) {
         data: { status: "sold", soldAt: new Date() },
       });
 
-      const showRow = await tx.lot.findUnique({
-        where: { id: lotId },
-        select: {
-          shippingCostCents: true,
-          show: { select: { sellerId: true } },
-        },
-      });
+      const [showRow, winner] = await Promise.all([
+        tx.lot.findUnique({
+          where: { id: lotId },
+          select: {
+            shippingCostCents: true,
+            show: { select: { sellerId: true } },
+          },
+        }),
+        tx.user.findUnique({
+          where: { id: lot.current_bid_user_id },
+          select: { name: true, handle: true, image: true },
+        }),
+      ]);
+      const winnerLabel =
+        winner?.name ?? (winner?.handle ? `@${winner.handle}` : "winner");
+      const winnerAvatar = winner?.image ?? null;
 
       if (showRow?.show) {
         const shipping = showRow.shippingCostCents ?? 0;
@@ -336,22 +345,38 @@ export async function closeLot(lotId: string) {
             lotId,
             buyerId: lot.current_bid_user_id,
             sellerId: showRow.show.sellerId,
-            // Total charged to the winning bidder = winning bid + shipping.
             amountCents: lot.current_bid_cents + shipping,
             shippingCents: shipping,
             status: "pending_payment",
           },
           select: { id: true },
         });
-        return { sold: true as const, lotId, orderId: order.id };
+        return {
+          sold: true as const,
+          lotId,
+          lotTitle: lot.title,
+          orderId: order.id,
+          winnerId: lot.current_bid_user_id,
+          winnerLabel,
+          winnerAvatar,
+          finalCents: lot.current_bid_cents,
+        };
       }
-      return { sold: true as const, lotId, orderId: null };
+      return {
+        sold: true as const,
+        lotId,
+        lotTitle: lot.title,
+        orderId: null,
+        winnerId: lot.current_bid_user_id,
+        winnerLabel,
+        finalCents: lot.current_bid_cents,
+      };
     }
 
     await tx.lot.update({
       where: { id: lotId },
       data: { status: "unsold" },
     });
-    return { sold: false as const, lotId };
+    return { sold: false as const, lotId, lotTitle: lot.title };
   });
 }

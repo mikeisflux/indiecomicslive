@@ -7,7 +7,9 @@ import WatchButton from "@/components/WatchButton";
 import AutoBidButton from "@/components/AutoBidButton";
 import ShowSideWidgets from "@/components/ShowSideWidgets";
 import VictoryBurst from "@/components/VictoryBurst";
+import WinnerReveal, { type WinnerTrigger } from "@/components/WinnerReveal";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
+import SlideToBid from "@/components/SlideToBid";
 import TipButton from "@/components/TipButton";
 import RecordingPlayer from "./RecordingPlayer";
 
@@ -104,6 +106,7 @@ export default function ShowRoom({
     { id: string; kind: string; at: number }[]
   >([]);
   const [victoryAt, setVictoryAt] = useState(0);
+  const [winnerTrigger, setWinnerTrigger] = useState<WinnerTrigger | null>(null);
   const [tipBlasts, setTipBlasts] = useState<TipBlast[]>([]);
 
   function pushTip(blast: Omit<TipBlast, "at">) {
@@ -168,6 +171,14 @@ export default function ShowRoom({
         setTimeout(() => setBidErr(null), 2000);
       } else if (msg.type === "lot_closed" && lot && msg.lotId === lot.id) {
         setLot({ ...lot, status: msg.sold ? "sold" : "unsold" });
+        if (msg.sold && msg.winnerLabel) {
+          setWinnerTrigger({
+            at: Date.now(),
+            label: msg.winnerLabel,
+            amountCents: msg.finalCents ?? 0,
+            avatarUrl: msg.winnerAvatar ?? null,
+          });
+        }
       } else if (msg.type === "tip") {
         pushTip({
           id: msg.tipId ?? `${Date.now()}`,
@@ -282,6 +293,7 @@ export default function ShowRoom({
         <ReactionLayer reactions={reactions} />
         <ReactionBar onTap={sendReaction} />
         <VictoryBurst trigger={victoryAt} />
+        <WinnerReveal trigger={winnerTrigger} />
         {tipBlasts.length > 0 && (
           <ul className="pointer-events-none absolute left-3 top-12 z-20 space-y-1">
             {tipBlasts.map((t) => (
@@ -319,7 +331,12 @@ export default function ShowRoom({
         )}
       </div>
 
-      <BidBar lot={lot} onBid={placeBid} bidErr={bidErr} />
+      <BidBar
+        lot={lot}
+        onBid={placeBid}
+        bidErr={bidErr}
+        amIHighBidder={!!lot && lot.currentBidUserId === userId}
+      />
 
       {lot && (lot.kind === "auction" || (lot.kind as unknown as string) === "flash") && (
         <div className="flex justify-end px-4 pb-2">
@@ -388,10 +405,12 @@ function BidBar({
   lot,
   onBid,
   bidErr,
+  amIHighBidder,
 }: {
   lot: Lot | null;
   onBid: () => void;
   bidErr: string | null;
+  amIHighBidder: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -401,8 +420,9 @@ function BidBar({
 
   if (!lot) {
     return (
-      <div className="border-y border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-paper/60">
-        Waiting for next lot…
+      <div className="flex items-center justify-center gap-2 border-y border-white/10 bg-white/[0.02] px-4 py-4 text-sm text-paper/60">
+        <span className="icl-pulse-dot inline-block h-2 w-2 rounded-full bg-accent" />
+        Awaiting next item
       </div>
     );
   }
@@ -414,25 +434,28 @@ function BidBar({
   const next =
     (lot.currentBidCents ?? lot.startingBidCents - lot.minIncrementCents) +
     lot.minIncrementCents;
-
   const closingSoon = remainingSec !== null && remainingSec <= 5;
+  const liveOrFlash = lot.status === "live";
+
   return (
     <div
-      className={`border-y border-white/10 bg-white/[0.02] px-4 py-3 transition ${
-        closingSoon ? "icl-pulse-dot bg-accent/10" : ""
+      className={`relative border-y border-white/10 bg-white/[0.02] transition ${
+        closingSoon ? "bg-accent/10" : ""
       }`}
     >
-      <div className="flex items-center gap-3">
+      {amIHighBidder && liveOrFlash && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500/90 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-ink shadow-[0_0_18px_rgba(16,185,129,0.55)]">
+          You're winning!
+        </div>
+      )}
+      <div className="flex items-center gap-2 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{lot.title}</p>
-          <p className="flex flex-wrap items-center gap-x-2 text-xs text-paper/60">
+          <p className="truncate text-sm font-bold">{lot.title}</p>
+          <p className="flex items-center gap-2 text-xs text-paper/60">
             {lot.currentBidCents ? (
               <>
-                <span>
-                  Current{" "}
-                  <span className="font-mono text-paper">
-                    ${(lot.currentBidCents / 100).toFixed(2)}
-                  </span>
+                <span className="font-mono font-bold text-paper">
+                  ${(lot.currentBidCents / 100).toFixed(2)}
                 </span>
                 <span className="text-paper/30">·</span>
                 <span>
@@ -442,35 +465,39 @@ function BidBar({
             ) : (
               <span>
                 Start{" "}
-                <span className="font-mono text-paper">
+                <span className="font-mono font-bold text-paper">
                   ${(lot.startingBidCents / 100).toFixed(2)}
                 </span>
               </span>
             )}
-            {remainingSec !== null && lot.status === "live" && (
-              <>
-                <span className="text-paper/30">·</span>
-                <span
-                  className={`font-mono ${
-                    closingSoon ? "text-accent" : "text-paper/60"
-                  }`}
-                >
-                  {remainingSec}s
-                </span>
-              </>
-            )}
           </p>
         </div>
-        <button
-          onClick={onBid}
-          disabled={lot.status !== "live"}
-          className="min-h-[48px] rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-[0_0_18px_rgba(255,51,102,0.35)] active:scale-95 disabled:opacity-40 disabled:shadow-none"
+
+        {liveOrFlash && lot.id && (
+          <AutoBidButton lotId={lot.id} initialMaxDollars={null} />
+        )}
+
+        <div
+          className={`grid h-12 w-14 shrink-0 place-items-center rounded-2xl border text-center font-mono text-xs font-bold transition ${
+            closingSoon
+              ? "border-accent/60 bg-accent/15 text-accent"
+              : "border-white/15 text-paper/70"
+          }`}
+          aria-label="Time remaining"
         >
-          Bid ${(next / 100).toFixed(2)}
-        </button>
+          {liveOrFlash && remainingSec !== null
+            ? `0:${String(remainingSec).padStart(2, "0")}`
+            : "—"}
+        </div>
+
+        <SlideToBid
+          label={`Bid: $${(next / 100).toFixed(2)}`}
+          disabled={!liveOrFlash}
+          onBid={onBid}
+        />
       </div>
       {bidErr && (
-        <p className="mt-2 text-xs text-accent">Bid rejected: {bidErr}</p>
+        <p className="px-4 pb-2 text-xs text-accent">Bid rejected: {bidErr}</p>
       )}
     </div>
   );

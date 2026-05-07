@@ -144,6 +144,49 @@ body {
   animation: icl-victory-particle 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* ─── Winner reveal (WinnerReveal.tsx) ────────────────────────── */
+@keyframes icl-winner-circle {
+  0%   { transform: scale(0); opacity: 0; }
+  20%  { transform: scale(1.18); opacity: 1; }
+  35%  { transform: scale(1); }
+  85%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+@keyframes icl-winner-name {
+  0%, 30% { opacity: 0; transform: translateY(28px) scale(0.92); }
+  45%     { opacity: 1; transform: translateY(0) scale(1.05); }
+  55%     { transform: translateY(0) scale(1); }
+  85%     { opacity: 1; }
+  100%    { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes icl-winner-subtitle {
+  0%, 45% { opacity: 0; transform: translateY(12px); }
+  60%     { opacity: 1; transform: translateY(0); }
+  85%     { opacity: 1; }
+  100%    { opacity: 0; }
+}
+.icl-winner-circle {
+  animation: icl-winner-circle 4200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+.icl-winner-name {
+  animation: icl-winner-name 4200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+.icl-winner-subtitle,
+.icl-winner-amount {
+  animation: icl-winner-subtitle 4200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .icl-winner-circle,
+  .icl-winner-name,
+  .icl-winner-subtitle,
+  .icl-winner-amount {
+    animation: none;
+  }
+}
+
 .icl-skeleton {
   background: linear-gradient(
     90deg,
