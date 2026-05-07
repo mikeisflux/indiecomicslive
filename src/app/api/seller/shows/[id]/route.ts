@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,15 @@ const Body = z.object({
   recordingEnabled: z.boolean().optional(),
   coverImageUrl: z.string().url().optional().nullable(),
   trailerUrl: z.string().url().optional().nullable(),
+  extraStreamIds: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(120),
+        label: z.string().min(1).max(40),
+      }),
+    )
+    .max(3)
+    .optional(),
 });
 
 export async function PATCH(
@@ -60,6 +70,10 @@ export async function PATCH(
   }
   if (parsed.data.trailerUrl !== undefined) {
     data.trailerUrl = parsed.data.trailerUrl;
+  }
+  if (parsed.data.extraStreamIds !== undefined) {
+    data.extraStreamIds =
+      parsed.data.extraStreamIds as unknown as Prisma.InputJsonValue;
   }
 
   const updated = await prisma.show.update({ where: { id }, data });

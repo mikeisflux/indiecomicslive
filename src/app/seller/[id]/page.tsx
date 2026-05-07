@@ -45,6 +45,10 @@ export default async function SellerShowPage({
           coverImageUrl: show.coverImageUrl,
           trailerUrl: show.trailerUrl,
           scheduledFor: show.scheduledFor?.toISOString() ?? null,
+          extraCams: ((show.extraStreamIds ?? []) as Array<{
+            id: string;
+            label: string;
+          }>),
         }}
         initialLots={show.lots.map((l) => ({
           id: l.id,

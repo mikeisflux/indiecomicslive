@@ -6,12 +6,26 @@ import type { WebRTCAdaptorCtor } from "@/types/antmedia";
 type Props = {
   showId: string;
   poster?: string | null;
+  // Optional override — when set, the player fetches play-token for
+  // this specific stream id instead of the show's main stream. Used
+  // by the multi-cam picker.
+  cam?: string | null;
+  // Optional list of registered alt cams (3-cam break setup). When
+  // present and length > 0 the player renders a small dropdown.
+  extraCams?: { id: string; label: string }[];
 };
 
 // WebRTC playback for live shows. Loads Ant Media's webrtc_adaptor.js
 // from the same host that's serving the stream, since the script is
-// part of every Ant Media app deployment.
-export default function AntMediaPlayer({ showId, poster }: Props) {
+// part of every Ant Media app deployment. When cam is set, the
+// component re-mounts to swap streams.
+export default function AntMediaPlayer({
+  showId,
+  poster,
+  cam,
+  extraCams,
+}: Props) {
+  const [picked, setPicked] = useState<string | null>(cam ?? null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(true);
@@ -21,8 +35,11 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
     let adaptor: InstanceType<WebRTCAdaptorCtor> | null = null;
 
     async function start() {
+      const tokenUrl = picked
+        ? `/api/shows/${showId}/play-token?cam=${encodeURIComponent(picked)}`
+        : `/api/shows/${showId}/play-token`;
       const [tokenR, iceR] = await Promise.all([
-        fetch(`/api/shows/${showId}/play-token`),
+        fetch(tokenUrl),
         fetch(`/api/turn-credentials`),
       ]);
       if (!tokenR.ok) {
@@ -85,7 +102,9 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
         adaptor?.stop(showId);
       } catch {}
     };
-  }, [showId]);
+  }, [showId, picked]);
+
+  const cams = extraCams ?? [];
 
   return (
     <div className="relative h-full w-full bg-black">
@@ -98,6 +117,35 @@ export default function AntMediaPlayer({ showId, poster }: Props) {
         poster={poster ?? undefined}
         className="h-full w-full object-cover"
       />
+      {cams.length > 0 && (
+        <div className="absolute right-3 top-3 flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => setPicked(null)}
+            className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur ${
+              picked === null
+                ? "bg-accent text-white"
+                : "bg-black/60 text-paper/80 hover:bg-black/80"
+            }`}
+          >
+            Main
+          </button>
+          {cams.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setPicked(c.id)}
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur ${
+                picked === c.id
+                  ? "bg-accent text-white"
+                  : "bg-black/60 text-paper/80 hover:bg-black/80"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
       {(waiting || error) && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-paper/60">
           {error ?? "Connecting…"}

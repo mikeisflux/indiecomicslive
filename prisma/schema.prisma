@@ -298,6 +298,8 @@ model User {
   supportTickets    SupportTicket[]     @relation("SupportTicketUser")
   supportMessages   SupportMessage[]    @relation("SupportMessageAuthor")
   insuranceClaims   InsuranceClaim[]    @relation("InsuranceFiler")
+  tipsSent          ShowTip[]           @relation("TipFrom")
+  tipsReceived      ShowTip[]           @relation("TipTo")
 
   // Seller's return / ship-from address (used by ShipStation labels).
   // Stored as JSON to keep the User row narrow:
@@ -570,6 +572,11 @@ model Show {
   // push so we don't re-push if the cron picks the row up again
   // before the show actually goes live.
   reminderSentAt   DateTime? @map("reminder_sent_at")
+  // Multi-cam: optional array of extra AMS stream IDs the seller is
+  // publishing in parallel (close-up cam, side cam, etc). Stored as
+  // JSON: [{ id: "stream-...", label: "Close-up" }]. The viewer page
+  // surfaces a small picker to swap between cams.
+  extraStreamIds   Json?     @map("extra_stream_ids")
 
   seller       User             @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
   lots         Lot[]
@@ -578,6 +585,7 @@ model Show {
   giveaways    Giveaway[]
   moderators   ShowModerator[]
   recordings   ShowRecording[]
+  tips         ShowTip[]
 
   @@index([sellerId])
   @@index([status])
@@ -854,6 +862,39 @@ model ShowModerator {
   @@id([showId, userId])
   @@index([userId])
   @@map("show_moderators")
+}
+
+// Live-show tip from a viewer to the host. Charges via DC's
+// charge-saved-payment-method on the buyer's default card. The tip
+// id doubles as the DC pledgeId for idempotency. Surfaced in the
+// chat strip + a "top tippers" panel during the show.
+enum ShowTipStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+model ShowTip {
+  id             String        @id @default(uuid()) @db.Uuid
+  showId         String        @map("show_id") @db.Uuid
+  fromUserId     String        @map("from_user_id") @db.Uuid
+  toSellerId     String        @map("to_seller_id") @db.Uuid
+  amountCents    Int           @map("amount_cents")
+  message        String?
+  sticker        String?
+  status         ShowTipStatus @default(pending)
+  dcTransactionId String?      @map("dc_transaction_id")
+  failureReason  String?       @map("failure_reason")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  show     Show @relation(fields: [showId], references: [id], onDelete: Cascade)
+  from     User @relation("TipFrom", fields: [fromUserId], references: [id])
+  toSeller User @relation("TipTo", fields: [toSellerId], references: [id])
+
+  @@index([showId, createdAt])
+  @@index([toSellerId, status])
+  @@map("show_tips")
 }
 
 // Seller broadcast to all of their followers. One row per blast;

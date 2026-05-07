@@ -8,6 +8,7 @@ import PinControl from "./PinControl";
 import ShowSettings from "./ShowSettings";
 import ObsCredentials from "@/components/ObsCredentials";
 import StageControls from "./StageControls";
+import CameraSettings from "./CameraSettings";
 
 const AntMediaPublisher = dynamic(
   () => import("@/components/AntMediaPublisher"),
@@ -47,6 +48,7 @@ type Props = {
     coverImageUrl: string | null;
     trailerUrl: string | null;
     scheduledFor: string | null;
+    extraCams: { id: string; label: string }[];
   };
   initialLots: Lot[];
 };
@@ -176,7 +178,12 @@ export default function SellerControls({ show, initialLots }: Props) {
         </section>
       )}
 
-      {tab === "stage" && <StageControls showId={show.id} />}
+      {tab === "stage" && (
+        <div className="space-y-4">
+          <StageControls showId={show.id} />
+          <CameraSettings showId={show.id} initial={show.extraCams ?? []} />
+        </div>
+      )}
 
       {tab === "lots" && (
         <LotManager

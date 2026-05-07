@@ -33,19 +33,26 @@ export default function ShowSideWidgets({
 }) {
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
   const [giveaways, setGiveaways] = useState<Giveaway[]>([]);
+  const [topTippers, setTopTippers] = useState<
+    { label: string; totalCents: number; tipCount: number }[]
+  >([]);
 
   async function load() {
     try {
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
         fetch(`/api/shows/${showId}/leaderboard`, { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => ({ items: [] })),
         fetch(`/api/shows/${showId}/giveaways`, { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => ({ items: [] })),
+        fetch(`/api/shows/${showId}/tip`, { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => ({ items: [] })),
       ]);
       setLeaders(a.items ?? []);
       setGiveaways(b.items ?? []);
+      setTopTippers(c.items ?? []);
     } catch {
       /* swallow */
     }
@@ -60,7 +67,13 @@ export default function ShowSideWidgets({
   const active = giveaways.filter((g) => g.status === "open");
   const recent = giveaways.filter((g) => g.status !== "open").slice(0, 3);
 
-  if (leaders.length === 0 && giveaways.length === 0) return null;
+  if (
+    leaders.length === 0 &&
+    giveaways.length === 0 &&
+    topTippers.length === 0
+  ) {
+    return null;
+  }
 
   return (
     <aside className="space-y-3 px-4 py-3">
@@ -73,6 +86,30 @@ export default function ShowSideWidgets({
           {active.map((g) => (
             <GiveawayRow key={g.id} g={g} signedIn={signedIn} onEntered={load} />
           ))}
+        </section>
+      )}
+
+      {topTippers.length > 0 && (
+        <section className="icl-glass rounded-xl p-3 text-sm">
+          <h3 className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">
+            💸 Top tippers
+          </h3>
+          <ol className="space-y-1.5">
+            {topTippers.map((r, i) => (
+              <li
+                key={`${r.label}-${i}`}
+                className="flex items-center justify-between text-xs"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-4 text-paper/40">#{i + 1}</span>
+                  <span className="text-paper">{r.label}</span>
+                </span>
+                <span className="font-mono text-amber-300">
+                  ${(r.totalCents / 100).toFixed(0)}
+                </span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 

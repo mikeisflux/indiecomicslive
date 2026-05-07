@@ -8,7 +8,17 @@ import AutoBidButton from "@/components/AutoBidButton";
 import ShowSideWidgets from "@/components/ShowSideWidgets";
 import VictoryBurst from "@/components/VictoryBurst";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
+import TipButton from "@/components/TipButton";
 import RecordingPlayer from "./RecordingPlayer";
+
+interface TipBlast {
+  id: string;
+  amountCents: number;
+  fromLabel: string;
+  message: string | null;
+  sticker: string | null;
+  at: number;
+}
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -39,6 +49,7 @@ type Props = {
     trailerUrl: string | null;
     pinnedLotId: string | null;
     chatOverlayEnabled: boolean;
+    extraCams: { id: string; label: string }[];
     isWatching: boolean;
   };
   seller: {
@@ -93,6 +104,14 @@ export default function ShowRoom({
     { id: string; kind: string; at: number }[]
   >([]);
   const [victoryAt, setVictoryAt] = useState(0);
+  const [tipBlasts, setTipBlasts] = useState<TipBlast[]>([]);
+
+  function pushTip(blast: Omit<TipBlast, "at">) {
+    setTipBlasts((b) => [...b.slice(-4), { ...blast, at: Date.now() }]);
+    setTimeout(() => {
+      setTipBlasts((b) => b.filter((t) => t.id !== blast.id));
+    }, 5000);
+  }
 
   function pushReaction(kind: string) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -149,6 +168,14 @@ export default function ShowRoom({
         setTimeout(() => setBidErr(null), 2000);
       } else if (msg.type === "lot_closed" && lot && msg.lotId === lot.id) {
         setLot({ ...lot, status: msg.sold ? "sold" : "unsold" });
+      } else if (msg.type === "tip") {
+        pushTip({
+          id: msg.tipId ?? `${Date.now()}`,
+          amountCents: msg.amountCents,
+          fromLabel: msg.fromLabel,
+          message: msg.message,
+          sticker: msg.sticker,
+        });
       } else if (msg.type === "chat_deleted") {
         setChat((c) =>
           c.map((m) =>
@@ -211,6 +238,9 @@ export default function ShowRoom({
         </div>
         <div className="flex items-center gap-2">
           {show.status === "scheduled" && <AddToCalendarButton showId={show.id} />}
+          {show.status === "live" && (
+            <TipButton showId={show.id} signedIn={signedIn} />
+          )}
           <WatchButton
             kind="show"
             id={show.id}
@@ -222,7 +252,11 @@ export default function ShowRoom({
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">
         {show.status === "live" ? (
-          <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+          <AntMediaPlayer
+            showId={show.id}
+            poster={show.coverImageUrl}
+            extraCams={show.extraCams}
+          />
         ) : replayUrl ? (
           <RecordingPlayer
             src={replayUrl}
@@ -238,12 +272,39 @@ export default function ShowRoom({
             className="h-full w-full bg-black object-contain"
           />
         ) : (
-          <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
+          <AntMediaPlayer
+            showId={show.id}
+            poster={show.coverImageUrl}
+            extraCams={show.extraCams}
+          />
         )}
         <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
         <ReactionLayer reactions={reactions} />
         <ReactionBar onTap={sendReaction} />
         <VictoryBurst trigger={victoryAt} />
+        {tipBlasts.length > 0 && (
+          <ul className="pointer-events-none absolute left-3 top-12 z-20 space-y-1">
+            {tipBlasts.map((t) => (
+              <li
+                key={t.id}
+                className="icl-fade-up flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-ink shadow-[0_0_18px_rgba(255,200,90,0.6)]"
+              >
+                <span className="text-base">{t.sticker ?? "💸"}</span>
+                <span>
+                  {t.fromLabel} tipped{" "}
+                  <span className="font-mono">
+                    ${(t.amountCents / 100).toFixed(2)}
+                  </span>
+                </span>
+                {t.message && (
+                  <span className="line-clamp-1 max-w-[180px] font-normal text-ink/80">
+                    "{t.message}"
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         {chatOverlayEnabled && chat.length > 0 && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 overflow-hidden bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
             <ul className="flex h-full flex-col-reverse gap-1 overflow-hidden text-sm">

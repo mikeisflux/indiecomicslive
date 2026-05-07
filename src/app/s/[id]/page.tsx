@@ -144,6 +144,10 @@ export default async function ShowPage({
         trailerUrl: show.trailerUrl,
         pinnedLotId: show.pinnedLotId,
         chatOverlayEnabled: show.chatOverlayEnabled,
+        extraCams: ((show.extraStreamIds ?? []) as Array<{
+          id: string;
+          label: string;
+        }>),
         isWatching,
       }}
       seller={show.seller}
