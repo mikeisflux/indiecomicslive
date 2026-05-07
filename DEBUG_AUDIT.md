@@ -216,3 +216,39 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 1. Apply the **C** + **H** fixes flagged above (this commit).
 2. Walk the `[ ]` rows top-to-bottom; tick `[x]` when reviewed clean, `[!]` with severity if a finding lands.
 3. Each batch of fixes lands as its own commit so the deploys stay reviewable.
+
+---
+
+## Audit summary
+
+### Fixed
+| Severity | Path | Issue |
+|---|---|---|
+| **C** | `src/lib/payments.ts` | sales-tax double-add via concurrent chargeOrder |
+| **C** | `src/app/api/giveaways/[id]/route.ts` | concurrent draw double-pick |
+| **C** | `src/app/api/insurance-claims/route.ts` | duplicate claim race |
+| **C** | `src/app/api/seller/orders/[id]/buy-label/route.ts` | Shippo double-charge on double-click |
+| **C** | `src/app/api/seller/shipments/[id]/buy-label/route.ts` | same on bundle path |
+| **H** | `src/app/api/cron/show-reminders/route.ts` | overlapping cron double-push |
+| **H** | `src/app/api/seller/shipments/route.ts` | concurrent bundle overwrite |
+| **H** | `src/lib/payouts.ts` | PLATFORM_FEE_BPS default 1000 → 600 |
+| **H** | `src/lib/auction.ts` setAutoBid + placeBid | anti-shill self-bid guard |
+| **M** | `src/app/api/follow/route.ts` | toggle race, upsert/deleteMany |
+| **M** | `src/app/api/watch/route.ts` | toggle race, upsert/deleteMany |
+| **M** | `src/app/api/account/handle/route.ts` | TOCTOU, P2002 catch |
+| **M** | `src/app/api/payment-methods/dc/confirm/route.ts` | duplicate-confirm 500, upsert |
+| **M** | `src/lib/dm.ts` findOrCreateConversation | upsert |
+| **L** | `src/lib/age-gate.ts` | dead code, deleted |
+
+### Reviewed clean (no fix needed)
+**lib:** auction (rest) · tips · push · recording-sync · notif-prefs · sms · sales-tax · search · ws-broadcast · totp · encryption · r2 · shippo · onboarding · prisma · rate-limit · recaptcha · with-bot-block · bot-blocker · email-rich · html-sanitize (regex sanitizer; trust-model documented) · seller-stats · buyer-stats · auth · antmedia.
+
+**routes:** orders (dispute, charge, review) · lots (buy, auto-bid, start) · messages · admin maintenance search-index · shows (tip, publish-token, play-token, calendar.ics, leaderboard, giveaways, moderators) · seller (applications, shows pin, shows run-it-again, lots auto-bids, broadcasts) · uploads/sign · cron (payouts, saved-searches, sync-recordings) · admin (seller-applications, disputes, orders, users, insurance-claims, bot-block, ip-blocks, health/streaming) · webhooks (divinitycoin signed, nmi signed, shippo token, antmedia signed/token, sendgrid-inbound intentionally open).
+
+### Known cosmetic / deferred
+- `src/app/api/saved-searches/route.ts` — `findFirst + create` could produce duplicate rows under concurrent submits. No unique index. Not security; cosmetic.
+- `src/app/api/shows/[id]/giveaways/route.ts` POST — no constraint enforces single-open per show; two simultaneous "Start" clicks would create two open rows. Annoying, not dangerous.
+- `src/lib/antmedia.ts:67` — `require("node:crypto")` while `import crypto` is already at the top. Stylistic.
+
+### App pages / client components
+Sampled high-traffic pages (`/s/[id]`, `/seller/orders`, `/orders/[id]`, `/account/help/[id]`, `/admin/insurance-claims`). All use `auth()` / `requireAdmin()` / `requireOnboardedUser()` correctly and pass server-resolved data to client components without leaking secrets. No findings.
