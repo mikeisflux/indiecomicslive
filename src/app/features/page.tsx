@@ -37,7 +37,10 @@ const SECTIONS: {
       { name: "Show recordings + R2 archive", detail: "Auto-recorded MP4, migrated to Cloudflare R2, replay forever." },
       { name: "Replay chapter markers", detail: "Jump to lot 5 in 2:34 — every sold lot gets a timestamp." },
       { name: "Mobile go-live", detail: "Full-screen portrait publisher; tap to start, swap front/back camera." },
+      { name: "Multi-cam (3-cam break setup)", detail: "Register Main + Close-up + Side cams; viewers swap with one tap." },
       { name: "OBS + RTMP support", detail: "Pro setups, multi-cam workflows, hardware encoders all welcome." },
+      { name: "Tipping (live)", detail: "Preset $1–$50 tips with a sticker + message; confetti ribbon on screen, top-tippers panel for cred." },
+      { name: "Buyable stickers", detail: "🎉 🔥 💸 🚀 💥 — tap a preset, the host sees the call-out, you land on the leaderboard." },
     ],
   },
   {
@@ -126,11 +129,13 @@ const COMPARISON: { feature: string; us: string; whatnot: string }[] = [
   { feature: ".ics calendar export for shows", us: "Yes", whatnot: "No" },
   { feature: "Co-host moderator role", us: "Yes — chat delete + giveaway run", whatnot: "Limited" },
   { feature: "Sub-second WebRTC bidding", us: "Yes", whatnot: "Yes" },
-  { feature: "Multi-cam break support", us: "Coming soon", whatnot: "Yes (Fanatics-class)" },
+  { feature: "Multi-cam break support", us: "Yes — Main + 2 alt cams, picker on the player", whatnot: "Yes (Fanatics-class)" },
   { feature: "Live customer-support chat", us: "Tickets via /account/help", whatnot: "Email only — slow" },
   { feature: "Authentication service", us: "On the roadmap", whatnot: "Yes (high-value)" },
   { feature: "Native iOS / Android app", us: "PWA — install from browser", whatnot: "Yes" },
-  { feature: "Gift cards / coins / tipping", us: "Coming soon", whatnot: "Limited" },
+  { feature: "Live tipping with stickers + confetti", us: "Yes — $1–$50 presets, real charges via DC", whatnot: "Limited" },
+  { feature: "Top-tippers leaderboard", us: "Yes — per-show, paid only", whatnot: "No" },
+  { feature: "Full-text search (tsvector + GIN)", us: "Yes — ts_rank-ordered with ILIKE fallback", whatnot: "Yes" },
   { feature: "Seller broadcasts (no spam)", us: "1/hour rate-limit", whatnot: "Missing" },
 ];
 
