@@ -295,6 +295,8 @@ model User {
   giveawayEntries   GiveawayEntry[]
   modShows          ShowModerator[]
   broadcasts        SellerBroadcast[]   @relation("SellerBroadcasts")
+  supportTickets    SupportTicket[]     @relation("SupportTicketUser")
+  supportMessages   SupportMessage[]    @relation("SupportMessageAuthor")
 
   // Seller's return / ship-from address (used by ShipStation labels).
   // Stored as JSON to keep the User row narrow:
@@ -923,6 +925,7 @@ model Order {
   shipment  Shipment? @relation(fields: [shipmentId], references: [id])
   review    Review?
   dispute   OrderDispute?
+  supportTickets SupportTicket[]
 
   @@index([buyerId])
   @@index([sellerId])
@@ -1058,6 +1061,51 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+// Buyer-side support ticket. Created from /account/help and surfaced
+// in /admin/support. Each ticket has a thread of messages alternating
+// between the user and admins. Closing a ticket is admin-only.
+enum SupportTicketStatus {
+  open
+  awaiting_user
+  resolved
+  closed
+}
+
+model SupportTicket {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @map("user_id") @db.Uuid
+  subject      String
+  status       SupportTicketStatus @default(open)
+  orderId      String?             @map("order_id") @db.Uuid
+  resolvedAt   DateTime?           @map("resolved_at")
+  resolvedById String?             @map("resolved_by_id") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  user     User             @relation("SupportTicketUser", fields: [userId], references: [id], onDelete: Cascade)
+  order    Order?           @relation(fields: [orderId], references: [id])
+  messages SupportMessage[]
+
+  @@index([status, updatedAt])
+  @@index([userId, updatedAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @map("ticket_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  body      String   @db.Text
+  fromAdmin Boolean  @default(false) @map("from_admin")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User          @relation("SupportMessageAuthor", fields: [userId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
 }
 
 // Buyer-saved search. Daily cron walks each row, finds new lots

@@ -104,9 +104,11 @@ export default async function ShowPage({
     canModerate = !!mod || show.sellerId === session.user.id;
   }
 
-  // Replay URL: only resolved when the show has ended and a
-  // ShowRecording row exists. Prefers the most recent recording.
+  // Replay URL + chapter markers. Only resolved when the show has
+  // ended and a ShowRecording row exists. Chapters are derived from
+  // each lot's startedAt offset relative to show.startedAt.
   let replayUrl: string | null = null;
+  let chapters: { lotId: string; title: string; offsetSec: number }[] = [];
   if (show.status === "ended") {
     const rec = await prisma.showRecording.findFirst({
       where: { showId: show.id },
@@ -115,6 +117,20 @@ export default async function ShowPage({
     });
     if (rec) {
       replayUrl = await recordingPlaybackUrl({ r2Key: rec.r2Key });
+    }
+    if (replayUrl && show.startedAt) {
+      const showStart = show.startedAt.getTime();
+      chapters = show.lots
+        .filter((l) => l.startedAt)
+        .sort((a, b) => a.startedAt!.getTime() - b.startedAt!.getTime())
+        .map((l) => ({
+          lotId: l.id,
+          title: l.title,
+          offsetSec: Math.max(
+            0,
+            Math.floor((l.startedAt!.getTime() - showStart) / 1000),
+          ),
+        }));
     }
   }
 
@@ -136,6 +152,7 @@ export default async function ShowPage({
       queuedLots={queuedLots}
       signedIn={!!session?.user?.id}
       replayUrl={replayUrl}
+      replayChapters={chapters}
       canModerate={canModerate}
     />
   );

@@ -8,6 +8,7 @@ import AutoBidButton from "@/components/AutoBidButton";
 import ShowSideWidgets from "@/components/ShowSideWidgets";
 import VictoryBurst from "@/components/VictoryBurst";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
+import RecordingPlayer from "./RecordingPlayer";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -53,6 +54,7 @@ type Props = {
   // playable URL (R2-presigned or AMS-direct). Triggers the replay
   // player instead of the AntMediaPlayer.
   replayUrl: string | null;
+  replayChapters: { lotId: string; title: string; offsetSec: number }[];
   // True for the show's seller or one of its moderators — surfaces the
   // moderator chat-delete buttons on each line.
   canModerate: boolean;
@@ -74,6 +76,7 @@ export default function ShowRoom({
   queuedLots,
   signedIn,
   replayUrl,
+  replayChapters,
   canModerate,
 }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -221,19 +224,11 @@ export default function ShowRoom({
         {show.status === "live" ? (
           <AntMediaPlayer showId={show.id} poster={show.coverImageUrl} />
         ) : replayUrl ? (
-          <>
-            <video
-              src={replayUrl}
-              poster={show.coverImageUrl ?? undefined}
-              controls
-              playsInline
-              preload="metadata"
-              className="h-full w-full bg-black object-contain"
-            />
-            <span className="absolute left-3 top-3 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-paper backdrop-blur">
-              Replay
-            </span>
-          </>
+          <RecordingPlayer
+            src={replayUrl}
+            poster={show.coverImageUrl}
+            chapters={replayChapters}
+          />
         ) : show.trailerUrl ? (
           <video
             src={show.trailerUrl}

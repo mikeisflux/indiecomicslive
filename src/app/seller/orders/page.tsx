@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireOnboardedUser } from "@/lib/onboarding";
 import OrdersList from "./OrdersList";
+import SuggestedBundles from "./SuggestedBundles";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,39 @@ export default async function SellerOrders() {
     },
     take: 200,
   });
+
+  // Suggested bundles — group unbundled, unshipped, paid orders by
+  // buyer and propose any cluster of 2+ from the last 7 days.
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const bundleCandidates = orders.filter(
+    (o) =>
+      o.status === "paid" &&
+      !o.shippedAt &&
+      !o.shipmentId &&
+      o.paidAt &&
+      o.paidAt.getTime() >= cutoff,
+  );
+  const groups = new Map<
+    string,
+    {
+      buyer: { id: string; name: string | null; handle: string | null };
+      orders: { id: string; title: string; amountCents: number }[];
+    }
+  >();
+  for (const o of bundleCandidates) {
+    const key = o.buyer.id;
+    const g = groups.get(key) ?? {
+      buyer: { id: o.buyer.id, name: o.buyer.name, handle: o.buyer.handle },
+      orders: [],
+    };
+    g.orders.push({
+      id: o.id,
+      title: o.lot.title ?? "(untitled lot)",
+      amountCents: o.amountCents,
+    });
+    groups.set(key, g);
+  }
+  const suggestions = [...groups.values()].filter((g) => g.orders.length >= 2);
 
   const rows = orders.map((o) => ({
     id: o.id,
@@ -61,6 +95,8 @@ export default async function SellerOrders() {
           Return address
         </Link>
       </div>
+
+      {suggestions.length > 0 && <SuggestedBundles groups={suggestions} />}
 
       <OrdersList orders={rows} />
     </main>

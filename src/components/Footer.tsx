@@ -5,9 +5,11 @@ const NAV: { title: string; links: { href: string; label: string }[] }[] = [
     title: "Indie Comics Live",
     links: [
       { href: "/", label: "Home" },
+      { href: "/features", label: "Features" },
       { href: "/sell", label: "Sell with us" },
       { href: "/about", label: "About" },
       { href: "/orders", label: "My orders" },
+      { href: "/account/help", label: "Help" },
     ],
   },
   {

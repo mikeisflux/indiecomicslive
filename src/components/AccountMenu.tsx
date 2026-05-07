@@ -139,6 +139,9 @@ export default function AccountMenu({
                 <MenuLink href="/feed" onClick={close}>
                   Your feed
                 </MenuLink>
+                <MenuLink href="/account/help" onClick={close}>
+                  Help · tickets
+                </MenuLink>
                 {isApprovedSeller && (
                   <MenuLink href="/seller/tax" onClick={close}>
                     Tax info (W-9)
