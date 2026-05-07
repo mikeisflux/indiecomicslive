@@ -108,11 +108,11 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [ ] `src/app/api/seller/broadcasts/route.ts`
 - [ ] `src/app/api/seller/chargeback-card/*`
 - [ ] `src/app/api/seller/lots/[id]/auto-bids/route.ts`
-- [ ] `src/app/api/seller/orders/[id]/buy-label/route.ts`
+- [x] `src/app/api/seller/orders/[id]/buy-label/route.ts` — **C → fixed** double-click could double-charge Shippo. Now stamps a sentinel `trackingNumber` BEFORE the Shippo call; releases on any downstream failure; real tracking overwrites on success.
 - [ ] `src/app/api/seller/orders/[id]/label.pdf/route.ts`
 - [ ] `src/app/api/seller/orders/[id]/rates/route.ts`
 - [ ] `src/app/api/seller/ship-from/route.ts`
-- [ ] `src/app/api/seller/shipments/[id]/buy-label/route.ts`
+- [x] `src/app/api/seller/shipments/[id]/buy-label/route.ts` — **C → fixed** same double-charge race on the bundle path; sentinel-claim + release pattern.
 - [ ] `src/app/api/seller/shipments/[id]/label.pdf/route.ts`
 - [ ] `src/app/api/seller/shows/[id]/pin/route.ts`
 - [ ] `src/app/api/seller/shows/[id]/route.ts`

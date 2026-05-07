@@ -54,8 +54,44 @@ export async function POST(
     );
   }
 
+  // Race-safe claim: stamp a sentinel tracking value BEFORE we hit
+  // Shippo so a concurrent double-click can't both buy a label
+  // (Shippo charges per transaction). The real tracking number
+  // overwrites the sentinel on success; on failure we clear the
+  // sentinel below.
+  const sentinel = `__pending_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const claimed = await prisma.order.updateMany({
+    where: {
+      id: order.id,
+      sellerId: session.user.id,
+      trackingNumber: null,
+      status: "paid",
+    },
+    data: { trackingNumber: sentinel },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json(
+      {
+        error: "race_lost",
+        message: "Another tab already started buying a label for this order.",
+      },
+      { status: 409 },
+    );
+  }
+
+  // Helper to release the sentinel on any downstream failure so the
+  // seller can retry without waiting for a manual unstick.
+  const releaseSentinel = () =>
+    prisma.order
+      .updateMany({
+        where: { id: order.id, trackingNumber: sentinel },
+        data: { trackingNumber: null },
+      })
+      .catch(() => null);
+
   const result = await createTransaction(parsed.data.rateId);
   if (!result.ok) {
+    await releaseSentinel();
     return NextResponse.json(
       { error: "shippo_error", message: result.error, status: result.status },
       { status: 502 },
@@ -63,6 +99,7 @@ export async function POST(
   }
   const tx = result.data;
   if (tx.status !== "SUCCESS" || !tx.tracking_number || !tx.label_url) {
+    await releaseSentinel();
     const detail =
       (tx.messages ?? []).map((m) => m.text).join("; ") ||
       `status=${tx.status}`;
@@ -81,6 +118,7 @@ export async function POST(
   } catch (e) {
     console.error("[buy-label] couldn't pull label PDF; refunding", e);
     await refundTransaction(tx.object_id).catch(() => null);
+    await releaseSentinel();
     return NextResponse.json(
       { error: "label_archive_failed", message: "Couldn't pull label PDF; transaction refunded." },
       { status: 502 },
@@ -92,6 +130,7 @@ export async function POST(
   } catch (e) {
     console.error("[buy-label] R2 upload failed; refunding label", e);
     await refundTransaction(tx.object_id).catch(() => null);
+    await releaseSentinel();
     return NextResponse.json(
       { error: "label_archive_failed", message: "Couldn't archive label PDF; label refunded." },
       { status: 502 },
