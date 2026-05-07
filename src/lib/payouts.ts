@@ -14,8 +14,10 @@ import { prisma } from "@/lib/prisma";
 import { callDivinityCoinAPI } from "@/lib/divinitycoin";
 
 function bps(): number {
-  const n = Number(process.env.PLATFORM_FEE_BPS ?? "1000");
-  if (!Number.isFinite(n) || n < 0 || n > 10000) return 1000;
+  // CLAUDE.md / .env.example default is 600 (6%). The previous 1000
+  // fallback would silently triple a missing env on prod.
+  const n = Number(process.env.PLATFORM_FEE_BPS ?? "600");
+  if (!Number.isFinite(n) || n < 0 || n > 10000) return 600;
   return Math.round(n);
 }
 

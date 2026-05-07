@@ -43,9 +43,10 @@ export async function POST(req: Request) {
   }
   const desired = typeof watch === "boolean" ? watch : !isCurrentlyWatched;
 
+  // Upsert / deleteMany so two concurrent toggles can't collide on the
+  // unique constraint with a 500.
   if (kind === "lot") {
-    if (desired && !isCurrentlyWatched) {
-      // Confirm the lot exists before bookmarking.
+    if (desired) {
       const lot = await prisma.lot.findUnique({
         where: { id },
         select: { id: true },
@@ -53,14 +54,16 @@ export async function POST(req: Request) {
       if (!lot) {
         return NextResponse.json({ error: "lot_not_found" }, { status: 404 });
       }
-      await prisma.watchedLot.create({ data: { userId, lotId: id } });
-    } else if (!desired && isCurrentlyWatched) {
-      await prisma.watchedLot.delete({
+      await prisma.watchedLot.upsert({
         where: { userId_lotId: { userId, lotId: id } },
+        update: {},
+        create: { userId, lotId: id },
       });
+    } else {
+      await prisma.watchedLot.deleteMany({ where: { userId, lotId: id } });
     }
   } else {
-    if (desired && !isCurrentlyWatched) {
+    if (desired) {
       const show = await prisma.show.findUnique({
         where: { id },
         select: { id: true },
@@ -68,11 +71,13 @@ export async function POST(req: Request) {
       if (!show) {
         return NextResponse.json({ error: "show_not_found" }, { status: 404 });
       }
-      await prisma.watchedShow.create({ data: { userId, showId: id } });
-    } else if (!desired && isCurrentlyWatched) {
-      await prisma.watchedShow.delete({
+      await prisma.watchedShow.upsert({
         where: { userId_showId: { userId, showId: id } },
+        update: {},
+        create: { userId, showId: id },
       });
+    } else {
+      await prisma.watchedShow.deleteMany({ where: { userId, showId: id } });
     }
   }
 

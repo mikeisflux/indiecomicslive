@@ -30,27 +30,20 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [x] `src/lib/shippo.ts` — Bearer auth + DB cached config.
 - [x] `src/lib/nmi.ts` — legacy, unchanged.
 - [x] `src/lib/divinitycoin/*` — webhook signature validation in `webhooks.ts`.
-- [ ] `src/lib/onboarding.ts`
-- [ ] `src/lib/admin.ts`
-- [ ] `src/lib/admin-password.ts`
-- [ ] `src/lib/age-gate.ts` — note: removed from layout, file may be dead
-- [ ] `src/lib/antmedia.ts`
-- [ ] `src/lib/auth.ts`
-- [ ] `src/lib/bot-blocker.ts`
-- [ ] `src/lib/buyer-stats.ts`
-- [ ] `src/lib/client-ip.ts`
-- [ ] `src/lib/dm.ts`
-- [ ] `src/lib/email-rich.ts`
-- [ ] `src/lib/email.ts`
-- [ ] `src/lib/html-sanitize.ts`
-- [ ] `src/lib/legal.ts`
-- [ ] `src/lib/payouts.ts`
-- [ ] `src/lib/prisma.ts`
-- [ ] `src/lib/rate-limit.ts`
-- [ ] `src/lib/recaptcha.ts`
-- [ ] `src/lib/seller-stats.ts`
-- [ ] `src/lib/turn.ts`
-- [ ] `src/lib/with-bot-block.ts`
+- [x] `src/lib/onboarding.ts` — clean: auth() + findUnique only.
+- [x] `src/lib/age-gate.ts` — **DELETED**, dead code (AgeGate component already removed).
+- [x] `src/lib/dm.ts` — **fixed** `findOrCreateConversation` race; switched to `upsert`.
+- [x] `src/lib/payouts.ts` — **fixed** `PLATFORM_FEE_BPS` default 1000 → 600 to match CLAUDE.md / .env.example.
+- [x] `src/lib/prisma.ts` — globalThis singleton, fine.
+- [x] `src/lib/rate-limit.ts` — sliding-window, per-process; flagged for Redis when scaling out.
+- [x] `src/lib/recaptcha.ts` — clean cache + verify path.
+- [x] `src/lib/with-bot-block.ts` — clean wrapper.
+- [ ] `src/lib/admin.ts` · `src/lib/admin-password.ts`
+- [ ] `src/lib/antmedia.ts` · `src/lib/auth.ts` · `src/lib/bot-blocker.ts`
+- [ ] `src/lib/buyer-stats.ts` · `src/lib/client-ip.ts`
+- [ ] `src/lib/email-rich.ts` · `src/lib/email.ts`
+- [ ] `src/lib/html-sanitize.ts` · `src/lib/legal.ts`
+- [ ] `src/lib/seller-stats.ts` · `src/lib/turn.ts`
 
 ---
 
@@ -73,7 +66,7 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 ### To review
 
 - [ ] `src/app/api/account/2fa/route.ts`
-- [ ] `src/app/api/account/handle/route.ts`
+- [x] `src/app/api/account/handle/route.ts` — **M → fixed** TOCTOU between availability check + update; now catches `P2002` and returns 409.
 - [ ] `src/app/api/account/notif-prefs/route.ts`
 - [ ] `src/app/api/account/notifications/route.ts`
 - [ ] `src/app/api/account/profile/route.ts`
@@ -94,20 +87,22 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [ ] `src/app/api/cron/payouts/route.ts`
 - [ ] `src/app/api/cron/saved-searches/route.ts`
 - [ ] `src/app/api/cron/sync-recordings/route.ts`
-- [ ] `src/app/api/follow/route.ts`
+- [x] `src/app/api/follow/route.ts` — **M → fixed** double-click race; switched to `upsert` / `deleteMany`.
 - [ ] `src/app/api/giveaways/[id]/enter/route.ts`
 - [ ] `src/app/api/lots/[id]/auto-bid/route.ts`
 - [ ] `src/app/api/lots/route.ts`
-- [ ] `src/app/api/lots/start/route.ts`
-- [ ] `src/app/api/messages/*`
+- [x] `src/app/api/lots/start/route.ts` — auth + ownership check; calls race-safe `startNextLot`.
+- [x] `src/app/api/messages/route.ts` — clean: auth + zod + rate-limit + transactional create+update.
+- [ ] `src/app/api/messages/[id]/route.ts` (still to review)
 - [ ] `src/app/api/notifications/route.ts`
-- [ ] `src/app/api/orders/[id]/charge/route.ts`
-- [ ] `src/app/api/orders/[id]/review/route.ts`
-- [ ] `src/app/api/payment-methods/*`
+- [x] `src/app/api/orders/[id]/charge/route.ts` — `chargeOrder` already gates on `pending_payment`; concurrent retries are deduped at the DC layer via `pledgeId`. Clean.
+- [x] `src/app/api/orders/[id]/review/route.ts` — `upsert` on `Order.review` (1:1), race-safe.
+- [x] `src/app/api/payment-methods/dc/confirm/route.ts` — **M → fixed** double-confirm hit `(processor, vaultId)` unique with a 500; switched to `upsert` inside the existing default-strip tx.
+- [ ] `src/app/api/payment-methods/{intent,route.ts}` (remaining)
 - [ ] `src/app/api/payments/nmi/public-key/route.ts`
 - [ ] `src/app/api/push/latest/route.ts`
 - [ ] `src/app/api/push/subscribe/route.ts`
-- [ ] `src/app/api/saved-searches/*`
+- [x] `src/app/api/saved-searches/*` — `findFirst` + `create` race can produce duplicate rows (no unique index on `(userId, query)`). Cosmetic, not security; deferred.
 - [ ] `src/app/api/seller/applications/route.ts`
 - [ ] `src/app/api/seller/bank-account/*`
 - [ ] `src/app/api/seller/broadcasts/route.ts`
@@ -134,7 +129,7 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [ ] `src/app/api/support/route.ts`
 - [ ] `src/app/api/turn-credentials/route.ts`
 - [ ] `src/app/api/uploads/sign/route.ts`
-- [ ] `src/app/api/watch/route.ts`
+- [x] `src/app/api/watch/route.ts` — **M → fixed** double-click race for both lot + show; switched to `upsert` / `deleteMany`.
 - [ ] `src/app/api/webhooks/antmedia/route.ts`
 - [ ] `src/app/api/webhooks/divinitycoin/route.ts`
 - [ ] `src/app/api/webhooks/nmi/route.ts`

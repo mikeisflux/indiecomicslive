@@ -53,13 +53,32 @@ export async function POST(req: Request) {
     );
   }
 
+  // Upsert on (processor, vaultId) — re-confirming the same pm
+  // doesn't blow up on the unique constraint, just refreshes display
+  // metadata + makes it default again. updateMany then strips other
+  // cards' default flag in the same tx.
   const row = await prisma.$transaction(async (tx) => {
     await tx.userPaymentMethod.updateMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, deletedAt: null },
       data: { isDefault: false },
     });
-    return tx.userPaymentMethod.create({
-      data: {
+    return tx.userPaymentMethod.upsert({
+      where: {
+        processor_vaultId: {
+          processor: "divinitycoin",
+          vaultId: parsed.data.paymentMethodId,
+        },
+      },
+      update: {
+        userId: session.user.id,
+        cardBrand: card.brand ?? null,
+        cardLast4: card.last4 ?? null,
+        cardExpMonth: card.expMonth ?? null,
+        cardExpYear: card.expYear ?? null,
+        isDefault: true,
+        deletedAt: null,
+      },
+      create: {
         userId: session.user.id,
         processor: "divinitycoin",
         vaultId: parsed.data.paymentMethodId,

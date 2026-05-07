@@ -34,18 +34,23 @@ export async function POST(req: Request) {
     where: {
       followerId_sellerId: { followerId: session.user.id, sellerId },
     },
+    select: { followerId: true },
   });
   const want = follow === undefined ? !existing : follow;
 
-  if (want && !existing) {
-    await prisma.follow.create({
-      data: { followerId: session.user.id, sellerId },
-    });
-  } else if (!want && existing) {
-    await prisma.follow.delete({
+  // Use upsert / deleteMany so two concurrent toggles from the same
+  // user can't trip the unique constraint with a 500.
+  if (want) {
+    await prisma.follow.upsert({
       where: {
         followerId_sellerId: { followerId: session.user.id, sellerId },
       },
+      update: {},
+      create: { followerId: session.user.id, sellerId },
+    });
+  } else {
+    await prisma.follow.deleteMany({
+      where: { followerId: session.user.id, sellerId },
     });
   }
   return NextResponse.json({ ok: true, following: want });

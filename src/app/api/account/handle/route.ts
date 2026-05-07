@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 
 const Body = z.object({
   handle: z
@@ -46,10 +47,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "handle_taken" }, { status: 409 });
   }
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { handle },
-  });
+  // TOCTOU: between the findUnique above and the update, another user
+  // can claim the same handle. Catch the unique-violation and return
+  // 409 so the client can retry with a different one.
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { handle },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      return NextResponse.json({ error: "handle_taken" }, { status: 409 });
+    }
+    throw err;
+  }
 
   return NextResponse.json({ ok: true, handle });
 }

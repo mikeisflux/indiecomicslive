@@ -13,22 +13,23 @@ export function sortedPair(
     : { a: userId2, b: userId1 };
 }
 
-// Find or create the Conversation between two users.
+// Find or create the Conversation between two users. Race-safe via
+// upsert — two concurrent calls for the same pair don't crash on the
+// unique (participantAId, participantBId) constraint.
 export async function findOrCreateConversation(
   meId: string,
   otherId: string,
 ): Promise<string> {
   const { a, b } = sortedPair(meId, otherId);
-  const existing = await prisma.conversation.findUnique({
-    where: { participantAId_participantBId: { participantAId: a, participantBId: b } },
+  const row = await prisma.conversation.upsert({
+    where: {
+      participantAId_participantBId: { participantAId: a, participantBId: b },
+    },
+    update: {},
+    create: { participantAId: a, participantBId: b },
     select: { id: true },
   });
-  if (existing) return existing.id;
-  const created = await prisma.conversation.create({
-    data: { participantAId: a, participantBId: b },
-    select: { id: true },
-  });
-  return created.id;
+  return row.id;
 }
 
 export interface ConversationListRow {
