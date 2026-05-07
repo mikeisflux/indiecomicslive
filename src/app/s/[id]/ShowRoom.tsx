@@ -7,6 +7,7 @@ import WatchButton from "@/components/WatchButton";
 import AutoBidButton from "@/components/AutoBidButton";
 import ShowSideWidgets from "@/components/ShowSideWidgets";
 import VictoryBurst from "@/components/VictoryBurst";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
 
 const AntMediaPlayer = dynamic(() => import("@/components/AntMediaPlayer"), {
   ssr: false,
@@ -205,12 +206,15 @@ export default function ShowRoom({
             {connected ? "connected" : "connecting…"}
           </p>
         </div>
-        <WatchButton
-          kind="show"
-          id={show.id}
-          initial={show.isWatching}
-          size="sm"
-        />
+        <div className="flex items-center gap-2">
+          {show.status === "scheduled" && <AddToCalendarButton showId={show.id} />}
+          <WatchButton
+            kind="show"
+            id={show.id}
+            initial={show.isWatching}
+            size="sm"
+          />
+        </div>
       </header>
 
       <div className="relative aspect-[9/16] max-h-[70dvh] w-full bg-black sm:aspect-video">

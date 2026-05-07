@@ -219,6 +219,21 @@ model User {
   // Email preferences
   emailUnsubscribedAt DateTime? @map("email_unsubscribed_at")
 
+  // Per-kind notification preferences. JSON map keyed by kind:
+  //   outbid / show_live / show_reminder / saved_search /
+  //   giveaway_won / seller_broadcast / order_update / dispute_update
+  // Each value is { push: bool, email: bool, sms: bool }. Missing
+  // keys default to opted-in. emailUnsubscribedAt above is a
+  // marketing-email kill-switch and wins over per-kind.
+  notifPrefs Json? @map("notif_prefs")
+
+  // SMS opt-in. phoneE164 is the verified E.164 number; smsOptInAt
+  // is set the first time the user hits the toggle. The actual SMS
+  // dispatch helper is wired but no-ops until a Twilio token is
+  // configured server-side.
+  phoneE164  String?   @map("phone_e164")
+  smsOptInAt DateTime? @map("sms_opt_in_at")
+
   // Chat moderation
   chatBannedAt   DateTime? @map("chat_banned_at")
   chatBannedById String?   @map("chat_banned_by_id") @db.Uuid
@@ -548,6 +563,10 @@ model Show {
   // stream goes live, and the AMS webhook for vod-ready writes a
   // ShowRecording row + ships the MP4 to R2.
   recordingEnabled Boolean @default(true) @map("recording_enabled")
+  // The reminder cron sets this once it sends the "going live soon"
+  // push so we don't re-push if the cron picks the row up again
+  // before the show actually goes live.
+  reminderSentAt   DateTime? @map("reminder_sent_at")
 
   seller       User             @relation("SellerShows", fields: [sellerId], references: [id], onDelete: Cascade)
   lots         Lot[]

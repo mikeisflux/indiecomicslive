@@ -233,22 +233,42 @@ export async function setAutoBid(opts: {
   return { ok: true as const };
 }
 
+// Open the next queued lot. If buyers placed pre-bids (AutoBid rows
+// with cap >= startingBidCents) the highest-cap user is seeded with
+// an opening bid at startingBidCents and the existing proxy engine
+// resolves any subsequent ladder.
 export async function startNextLot(showId: string, durationSeconds = 30) {
-  return await prisma.$transaction(async (tx) => {
-    const next = await tx.lot.findFirst({
-      where: { showId, status: "queued" },
-      orderBy: { position: "asc" },
-    });
-    if (!next) return null;
-
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + durationSeconds * 1000);
-
-    return await tx.lot.update({
-      where: { id: next.id },
-      data: { status: "live", startedAt: now, endsAt },
-    });
+  const next = await prisma.lot.findFirst({
+    where: { showId, status: "queued" },
+    orderBy: { position: "asc" },
   });
+  if (!next) return null;
+
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + durationSeconds * 1000);
+
+  const lot = await prisma.lot.update({
+    where: { id: next.id },
+    data: { status: "live", startedAt: now, endsAt },
+  });
+
+  const highest = await prisma.autoBid.findFirst({
+    where: {
+      lotId: lot.id,
+      active: true,
+      maxAmountCents: { gte: lot.startingBidCents },
+    },
+    orderBy: [{ maxAmountCents: "desc" }, { createdAt: "asc" }],
+  });
+  if (highest) {
+    await placeBid({
+      lotId: lot.id,
+      userId: highest.userId,
+      amountCents: lot.startingBidCents,
+    }).catch(() => {});
+  }
+
+  return lot;
 }
 
 export async function closeLot(lotId: string) {

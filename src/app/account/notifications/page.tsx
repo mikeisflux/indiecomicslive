@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import NotificationsForm from "./NotificationsForm";
+import NotifPrefsPanel from "./NotifPrefsPanel";
 import EnablePushButton from "@/components/EnablePushButton";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,12 @@ export default async function NotificationsPage() {
   const [me, items] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { emailUnsubscribedAt: true },
+      select: {
+        emailUnsubscribedAt: true,
+        notifPrefs: true,
+        phoneE164: true,
+        smsOptInAt: true,
+      },
     }),
     prisma.notification.findMany({
       where: { userId: session.user.id },
@@ -58,6 +64,26 @@ export default async function NotificationsPage() {
           sent. Marketing email is opt-in.
         </p>
         <NotificationsForm initialSubscribed={!me?.emailUnsubscribedAt} />
+      </section>
+
+      <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-paper/60">
+          What we ping you about
+        </h2>
+        <p className="mt-1 text-sm text-paper/70">
+          Pick which channels you want for each kind. Marketing email
+          is governed by the toggle above — turning it off silences
+          marketing email regardless of what&rsquo;s checked here.
+        </p>
+        <NotifPrefsPanel
+          initialPrefs={
+            (me?.notifPrefs ?? {}) as Parameters<
+              typeof NotifPrefsPanel
+            >[0]["initialPrefs"]
+          }
+          initialPhone={me?.phoneE164 ?? null}
+          initialSmsOptIn={!!me?.smsOptInAt}
+        />
       </section>
 
       <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">

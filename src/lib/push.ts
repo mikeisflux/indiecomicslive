@@ -1,5 +1,6 @@
 import { SignJWT, importPKCS8 } from "jose";
 import { prisma } from "@/lib/prisma";
+import { shouldNotify, type NotifKind } from "@/lib/notif-prefs";
 
 // Web Push (RFC 8030) without a third-party library. Uses VAPID
 // (RFC 8292) for authentication and *payload-less* pushes — the
@@ -41,7 +42,10 @@ async function vapidAuthHeader(audience: string): Promise<string> {
 
 // Persists the notification + fans it out to every push subscription
 // registered for the user. Push delivery is best-effort: failures are
-// swallowed (404/410 deletes the dead subscription).
+// swallowed (404/410 deletes the dead subscription). Honors the
+// user's per-kind push preference — silenced kinds skip the OS
+// dispatch but still write a Notification row so the bell icon stays
+// truthful.
 export async function pushToUser(
   userId: string,
   payload: PushPayload,
@@ -55,6 +59,13 @@ export async function pushToUser(
       url: payload.url ?? null,
     },
   });
+
+  const wantsPush = await shouldNotify(
+    userId,
+    payload.kind as NotifKind,
+    "push",
+  ).catch(() => true);
+  if (!wantsPush) return;
 
   if (!vapidEnabled()) return;
 
