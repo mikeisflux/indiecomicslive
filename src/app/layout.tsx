@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import PWARegister from "@/components/PWARegister";
 import StreakBackground from "@/components/StreakBackground";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 import { ToasterProvider } from "@/components/Toaster";
 import "./globals.css";
 
@@ -110,6 +111,7 @@ export default function RootLayout({
           <div className="relative z-10 min-h-dvh">{children}</div>
         </ToasterProvider>
         <MobileBottomNav />
+        <InstallAppPrompt />
         <PWARegister />
       </body>
     </html>

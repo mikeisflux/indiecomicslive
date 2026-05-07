@@ -8,6 +8,8 @@ export interface BidEvent {
   lotTitle: string;
   amountCents: number;
   bidderId: string;
+  bidderLabel: string;
+  bidderAvatar: string | null;
   previousHighBidderId: string | null;
   previousBidCents: number | null;
   proxy: boolean;
@@ -130,35 +132,45 @@ export async function placeBid(opts: {
         remaining < softCloseMs
           ? new Date(Date.now() + softCloseMs)
           : endsAt!;
-      await tx.bid.create({
-        data: {
-          lotId: lot.id,
-          userId,
-          amountCents: amt,
-          accepted: true,
-          proxy,
-        },
-      });
-      await tx.lot.update({
-        where: { id: lot.id },
-        data: {
-          currentBidCents: amt,
-          currentBidUserId: userId,
-          endsAt: newEndsAt,
-          bidCount: { increment: 1 },
-        },
-      });
+      const [, , bidder] = await Promise.all([
+        tx.bid.create({
+          data: {
+            lotId: lot.id,
+            userId,
+            amountCents: amt,
+            accepted: true,
+            proxy,
+          },
+        }),
+        tx.lot.update({
+          where: { id: lot.id },
+          data: {
+            currentBidCents: amt,
+            currentBidUserId: userId,
+            endsAt: newEndsAt,
+            bidCount: { increment: 1 },
+          },
+        }),
+        tx.user.findUnique({
+          where: { id: userId },
+          select: { name: true, handle: true, image: true },
+        }),
+      ]);
       const previousHighBidderId = currentBidderId;
       const previousBidCents = currentBidCents;
       currentBidCents = amt;
       currentBidderId = userId;
       endsAt = newEndsAt;
       bidCount += 1;
+      const bidderLabel =
+        bidder?.name ?? (bidder?.handle ? `@${bidder.handle}` : "anonymous");
       events.push({
         lotId: lot.id,
         lotTitle: lot.title,
         amountCents: amt,
         bidderId: userId,
+        bidderLabel,
+        bidderAvatar: bidder?.image ?? null,
         previousHighBidderId,
         previousBidCents,
         proxy,

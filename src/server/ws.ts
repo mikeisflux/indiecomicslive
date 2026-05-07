@@ -286,6 +286,8 @@ wss.on("connection", async (ws, req) => {
           lotId: ev.lotId,
           currentBidCents: ev.amountCents,
           currentBidUserId: ev.bidderId,
+          currentBidderLabel: ev.bidderLabel,
+          currentBidderAvatar: ev.bidderAvatar,
           endsAt: ev.endsAt,
           bidCount: ev.bidCount,
           proxy: ev.proxy,

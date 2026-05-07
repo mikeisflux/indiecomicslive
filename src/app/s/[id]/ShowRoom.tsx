@@ -107,6 +107,8 @@ export default function ShowRoom({
   const [connected, setConnected] = useState(false);
   const [lot, setLot] = useState<Lot | null>(initialLot);
   const [pinnedLot, setPinnedLot] = useState<Lot | null>(initialPinnedLot);
+  const [currentBidderLabel, setCurrentBidderLabel] =
+    useState<string | null>(null);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [bidErr, setBidErr] = useState<string | null>(null);
@@ -168,6 +170,9 @@ export default function ShowRoom({
           endsAt: msg.endsAt,
           bidCount: msg.bidCount,
         });
+        if (typeof msg.currentBidderLabel === "string") {
+          setCurrentBidderLabel(msg.currentBidderLabel);
+        }
         if (msg.currentBidUserId === userId) {
           setVictoryAt(Date.now());
         }
@@ -368,6 +373,7 @@ export default function ShowRoom({
         onBid={placeBid}
         bidErr={bidErr}
         amIHighBidder={!!lot && lot.currentBidUserId === userId}
+        currentBidderLabel={currentBidderLabel}
       />
 
       {lot && (lot.kind === "auction" || (lot.kind as unknown as string) === "flash") && (
@@ -438,11 +444,13 @@ function BidBar({
   onBid,
   bidErr,
   amIHighBidder,
+  currentBidderLabel,
 }: {
   lot: Lot | null;
   onBid: () => void;
   bidErr: string | null;
   amIHighBidder: boolean;
+  currentBidderLabel: string | null;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -475,12 +483,29 @@ function BidBar({
         closingSoon ? "bg-accent/10" : ""
       }`}
     >
-      {amIHighBidder && liveOrFlash && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500/90 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-ink shadow-[0_0_18px_rgba(16,185,129,0.55)]">
-          You're winning!
+      {liveOrFlash && (amIHighBidder || currentBidderLabel) && (
+        <div className="absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-500 px-3 py-1 text-[11px] font-extrabold uppercase tracking-widest text-ink shadow-[0_0_18px_rgba(251,191,36,0.55)]">
+          {amIHighBidder ? (
+            <>
+              <span aria-hidden>👑</span> You&rsquo;re winning!
+            </>
+          ) : (
+            <>
+              <span className="lowercase normal-case">{currentBidderLabel}</span>{" "}
+              <span className="text-amber-900">is winning!</span>
+            </>
+          )}
         </div>
       )}
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-center gap-3 px-4 py-3">
+        {lot.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={lot.imageUrl}
+            alt=""
+            className="h-12 w-12 shrink-0 rounded-lg border border-white/10 object-cover"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold">{lot.title}</p>
           <p className="flex items-center gap-2 text-xs text-paper/60">
