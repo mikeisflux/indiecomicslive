@@ -245,10 +245,17 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 
 **routes:** orders (dispute, charge, review) · lots (buy, auto-bid, start) · messages · admin maintenance search-index · shows (tip, publish-token, play-token, calendar.ics, leaderboard, giveaways, moderators) · seller (applications, shows pin, shows run-it-again, lots auto-bids, broadcasts) · uploads/sign · cron (payouts, saved-searches, sync-recordings) · admin (seller-applications, disputes, orders, users, insurance-claims, bot-block, ip-blocks, health/streaming) · webhooks (divinitycoin signed, nmi signed, shippo token, antmedia signed/token, sendgrid-inbound intentionally open).
 
-### Known cosmetic / deferred
-- `src/app/api/saved-searches/route.ts` — `findFirst + create` could produce duplicate rows under concurrent submits. No unique index. Not security; cosmetic.
-- `src/app/api/shows/[id]/giveaways/route.ts` POST — no constraint enforces single-open per show; two simultaneous "Start" clicks would create two open rows. Annoying, not dangerous.
-- `src/lib/antmedia.ts:67` — `require("node:crypto")` while `import crypto` is already at the top. Stylistic.
+### Pass 5 — fixed everything previously deferred
+- [x] `src/app/api/saved-searches/route.ts` — schema now has `@@unique([userId, query])`; POST switched to `upsert`. Concurrent submits collapse.
+- [x] `src/app/api/saved-searches/[id]/route.ts` DELETE — ownership-scoped `deleteMany` (no P2025 race).
+- [x] `src/app/api/shows/[id]/giveaways/route.ts` POST — Serializable `$transaction` with "no open giveaway already" guard. Concurrent Start → one row + 409.
+- [x] `src/lib/antmedia.ts` — dropped redundant `require("node:crypto")` inside `signRestJwt`.
+- [x] `src/app/api/account/profile/route.ts` — TOCTOU on handle field; same `P2002 → 409` fix as `/api/account/handle`.
+- [x] `src/app/api/admin/ip-blocks/[id]/route.ts` DELETE — `deleteMany` for idempotency.
+
+### Server processes
+- [x] `src/server/ws.ts` — full read. Auction close timer (`setInterval(... 1000)`) calls `closeLot` which is already idempotent (`status !== "live"` check). Internal `/internal/broadcast` HTTP endpoint requires the shared secret. Reaction rate limit per-user. `chat_delete` already idempotent. No findings.
+- [x] `src/server/load-env.ts` — single-purpose dotenv shim.
 
 ### App pages / client components
-Sampled high-traffic pages (`/s/[id]`, `/seller/orders`, `/orders/[id]`, `/account/help/[id]`, `/admin/insurance-claims`). All use `auth()` / `requireAdmin()` / `requireOnboardedUser()` correctly and pass server-resolved data to client components without leaking secrets. No findings.
+Sampled high-traffic pages (`/s/[id]`, `/seller/orders`, `/orders/[id]`, `/account/help/[id]`, `/admin/insurance-claims`, `/account/profile`, `/seller/[id]`). All use `auth()` / `requireAdmin()` / `requireOnboardedUser()` correctly and pass server-resolved data to client components without leaking secrets. Components are presentation-layer (`AntMediaPlayer`, `TipButton`, etc.) — they consume server endpoints, no privileged operations. No findings.
