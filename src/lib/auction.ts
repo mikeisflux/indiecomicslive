@@ -56,6 +56,23 @@ export async function placeBid(opts: {
   userId: string;
   amountCents: number;
 }): Promise<BidResult> {
+  // Anti-shill pre-check: block the lot's own seller (and the parent
+  // show's seller, for live-show auctions) from bidding on themselves.
+  // Cheap before we open the tx.
+  const owner = await prisma.lot.findUnique({
+    where: { id: opts.lotId },
+    select: {
+      sellerId: true,
+      show: { select: { sellerId: true } },
+    },
+  });
+  if (
+    owner &&
+    (owner.sellerId === opts.userId || owner.show?.sellerId === opts.userId)
+  ) {
+    return { ok: false as const, reason: "self_bid" };
+  }
+
   return await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<LockedLot[]>`
       SELECT id, title, show_id, status, starting_bid_cents,
@@ -215,10 +232,25 @@ export async function setAutoBid(opts: {
   }
   const lot = await prisma.lot.findUnique({
     where: { id: opts.lotId },
-    select: { kind: true, status: true, currentBidCents: true },
+    select: {
+      kind: true,
+      status: true,
+      currentBidCents: true,
+      sellerId: true,
+      show: { select: { sellerId: true } },
+    },
   });
   if (!lot || (lot.kind !== "auction" && lot.kind !== "flash")) {
     return { ok: false as const, reason: "not_an_auction" };
+  }
+  // Anti-shill: a seller can't auto-bid on their own lot or any lot
+  // in their own show. Catches both 24/7-shop auctions (sellerId on
+  // the lot) and live-show auctions (sellerId on the parent show).
+  if (
+    lot.sellerId === opts.userId ||
+    lot.show?.sellerId === opts.userId
+  ) {
+    return { ok: false as const, reason: "self_bid" };
   }
   await prisma.autoBid.upsert({
     where: { lotId_userId: { lotId: opts.lotId, userId: opts.userId } },

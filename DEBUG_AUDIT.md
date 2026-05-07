@@ -15,7 +15,7 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 ## src/lib (core libs)
 
 - [x] `src/lib/payments.ts` · **C → fixed** · `applySalesTaxIfNeeded` now swaps the final `update` for an `updateMany` with `WHERE taxJurisdiction IS NULL AND salesTaxCents = 0`. Second concurrent caller sees `count: 0` and no-ops.
-- [x] `src/lib/auction.ts` — proxy loop hard-capped at 50 iterations + `if (next <= currentBid) break`. FOR UPDATE inside `$transaction` holds the lock. `startNextLot` correctly seeds pre-bids by issuing a separate `placeBid` after the lot transition (no nested tx).
+- [x] `src/lib/auction.ts` — proxy loop hard-capped at 50 iterations + `if (next <= currentBid) break`. FOR UPDATE inside `$transaction` holds the lock. `startNextLot` correctly seeds pre-bids by issuing a separate `placeBid` after the lot transition (no nested tx). **Added** anti-shill self-bid guards to both `placeBid` and `setAutoBid` — sellers can't bid on their own lots / shows.
 - [x] `src/lib/tips.ts` — DC's `pledgeId` (tip.id) gives idempotency on the charge side. Best-effort row update is acceptable.
 - [x] `src/lib/push.ts` — 404/410 dead-sub deletion is by-id, idempotent.
 - [x] `src/lib/recording-sync.ts` — buffers full MP4 in RAM. Acceptable for MVP, flagged for streaming upgrade later.
@@ -89,7 +89,7 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [ ] `src/app/api/cron/sync-recordings/route.ts`
 - [x] `src/app/api/follow/route.ts` — **M → fixed** double-click race; switched to `upsert` / `deleteMany`.
 - [ ] `src/app/api/giveaways/[id]/enter/route.ts`
-- [ ] `src/app/api/lots/[id]/auto-bid/route.ts`
+- [x] `src/app/api/lots/[id]/auto-bid/route.ts` — clean: auth + zod + `setAutoBid` (which now self-bid-blocks).
 - [ ] `src/app/api/lots/route.ts`
 - [x] `src/app/api/lots/start/route.ts` — auth + ownership check; calls race-safe `startNextLot`.
 - [x] `src/app/api/messages/route.ts` — clean: auth + zod + rate-limit + transactional create+update.
@@ -114,7 +114,7 @@ Severity: **C**ritical · **H**igh · **M**edium · **L**ow.
 - [ ] `src/app/api/seller/ship-from/route.ts`
 - [x] `src/app/api/seller/shipments/[id]/buy-label/route.ts` — **C → fixed** same double-charge race on the bundle path; sentinel-claim + release pattern.
 - [ ] `src/app/api/seller/shipments/[id]/label.pdf/route.ts`
-- [ ] `src/app/api/seller/shows/[id]/pin/route.ts`
+- [x] `src/app/api/seller/shows/[id]/pin/route.ts` — auth + ownership + lot-in-show check, atomic update, fire-and-forget WS broadcast.
 - [ ] `src/app/api/seller/shows/[id]/route.ts`
 - [ ] `src/app/api/seller/shows/[id]/run-it-again/route.ts`
 - [ ] `src/app/api/seller/tax-form/route.ts`
