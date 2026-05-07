@@ -99,12 +99,35 @@ export async function POST(req: Request) {
     const s = await tx.shipment.create({
       data: { sellerId: session.user.id, buyerId },
     });
-    await tx.order.updateMany({
-      where: { id: { in: parsed.data.orderIds } },
+    // Race guard: shipmentId: null means a concurrent bundle that
+    // beat us hasn't already linked these orders. count !== orderIds
+    // length means at least one was claimed mid-transaction; bail.
+    const linked = await tx.order.updateMany({
+      where: {
+        id: { in: parsed.data.orderIds },
+        sellerId: session.user.id,
+        shipmentId: null,
+      },
       data: { shipmentId: s.id },
     });
+    if (linked.count !== parsed.data.orderIds.length) {
+      throw new Error("race_lost");
+    }
     return s;
+  }).catch((e: Error) => {
+    if (e.message === "race_lost") return null;
+    throw e;
   });
+
+  if (!shipment) {
+    return NextResponse.json(
+      {
+        error: "race_lost",
+        message: "One of those orders just got bundled by another tab.",
+      },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json({
     ok: true,

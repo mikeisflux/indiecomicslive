@@ -62,7 +62,11 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
-  // Draw — pick a random entrant.
+  // Draw — pick a random entrant. Race-safe: the updateMany guard
+  // means only the first concurrent caller transitions the row out
+  // of open/closed; subsequent callers see count: 0 and bail with
+  // "already_drawn". The push only fires when this caller "won" the
+  // race.
   if (g.status !== "open" && g.status !== "closed") {
     return NextResponse.json({ error: "already_drawn" }, { status: 409 });
   }
@@ -70,22 +74,25 @@ export async function PATCH(
     where: { giveawayId: id },
     select: { userId: true },
   });
-  if (entries.length === 0) {
-    await prisma.giveaway.update({
-      where: { id },
-      data: { status: "drawn", drawnAt: new Date() },
-    });
-    return NextResponse.json({ ok: true, winnerId: null });
-  }
-  const winner = entries[Math.floor(Math.random() * entries.length)];
-  await prisma.giveaway.update({
-    where: { id },
+  const winner =
+    entries.length > 0
+      ? entries[Math.floor(Math.random() * entries.length)]
+      : null;
+
+  const updated = await prisma.giveaway.updateMany({
+    where: { id, status: { in: ["open", "closed"] } },
     data: {
       status: "drawn",
       drawnAt: new Date(),
-      winnerId: winner.userId,
+      winnerId: winner?.userId ?? null,
     },
   });
+  if (updated.count === 0) {
+    return NextResponse.json({ error: "already_drawn" }, { status: 409 });
+  }
+  if (!winner) {
+    return NextResponse.json({ ok: true, winnerId: null });
+  }
 
   pushToUser(winner.userId, {
     kind: "giveaway_won",

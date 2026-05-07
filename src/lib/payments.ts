@@ -42,8 +42,15 @@ async function applySalesTaxIfNeeded(orderId: string): Promise<void> {
   const tax = await computeSalesTaxCents(addr.state, taxable);
   if (!tax.jurisdiction) return;
 
-  await prisma.order.update({
-    where: { id: order.id },
+  // Atomic guard: only the first concurrent caller succeeds. updateMany
+  // returns count: 0 for the second caller (taxJurisdiction is no
+  // longer null), which is a no-op — no double-billing.
+  await prisma.order.updateMany({
+    where: {
+      id: order.id,
+      taxJurisdiction: null,
+      salesTaxCents: 0,
+    },
     data: {
       amountCents: order.amountCents + tax.cents,
       salesTaxCents: tax.cents,

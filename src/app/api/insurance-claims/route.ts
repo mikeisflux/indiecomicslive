@@ -59,12 +59,32 @@ export async function POST(req: Request) {
   }
   // Cap claim amount at the order total to keep abuse honest.
   const cappedAmount = Math.min(parsed.data.amountCents, order.amountCents);
-  // One open claim per order at a time.
-  const existing = await prisma.insuranceClaim.findFirst({
-    where: { orderId: order.id, status: { in: ["open", "approved"] } },
-    select: { id: true },
-  });
-  if (existing) {
+
+  // Race-safe: serializable transaction. The findFirst + create lives
+  // inside one tx so a concurrent caller sees either the row we just
+  // inserted (and returns 409) or blocks until commit.
+  const claim = await prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.insuranceClaim.findFirst({
+        where: { orderId: order.id, status: { in: ["open", "approved"] } },
+        select: { id: true },
+      });
+      if (existing) return null;
+      return tx.insuranceClaim.create({
+        data: {
+          orderId: order.id,
+          filedById: session.user.id,
+          reason: parsed.data.reason,
+          description: parsed.data.description,
+          amountCents: cappedAmount,
+          evidenceUrls: parsed.data.evidenceUrls ?? [],
+        },
+        select: { id: true },
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
+  if (!claim) {
     return NextResponse.json(
       {
         error: "already_open",
@@ -73,16 +93,5 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
-  const claim = await prisma.insuranceClaim.create({
-    data: {
-      orderId: order.id,
-      filedById: session.user.id,
-      reason: parsed.data.reason,
-      description: parsed.data.description,
-      amountCents: cappedAmount,
-      evidenceUrls: parsed.data.evidenceUrls ?? [],
-    },
-    select: { id: true },
-  });
   return NextResponse.json({ ok: true, id: claim.id });
 }

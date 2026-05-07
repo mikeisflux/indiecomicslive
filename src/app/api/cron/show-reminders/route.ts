@@ -47,6 +47,15 @@ export async function POST(req: Request) {
 
   let notified = 0;
   for (const s of shows) {
+    // Race-safe lock: claim the row first. If a concurrent cron run
+    // has already set reminderSentAt, count is 0 and we skip the
+    // fan-out to avoid double-pushing followers.
+    const claimed = await prisma.show.updateMany({
+      where: { id: s.id, reminderSentAt: null },
+      data: { reminderSentAt: new Date() },
+    });
+    if (claimed.count === 0) continue;
+
     const [followers, watchers] = await Promise.all([
       prisma.follow.findMany({
         where: { sellerId: s.sellerId },
@@ -76,10 +85,6 @@ export async function POST(req: Request) {
       }).catch(() => {});
       notified += 1;
     }
-    await prisma.show.update({
-      where: { id: s.id },
-      data: { reminderSentAt: new Date() },
-    });
   }
 
   return NextResponse.json({
