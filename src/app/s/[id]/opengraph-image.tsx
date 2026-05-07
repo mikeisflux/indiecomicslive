@@ -76,11 +76,11 @@ export default async function Image({
           }}
         />
 
-        <div style={{ display: "flex", gap: 12, zIndex: 1 }}>
+        <div style={{ display: "flex", gap: 12 }}>
           {isLive && (
             <div
               style={{
-                display: "inline-flex",
+                display: "flex",
                 alignItems: "center",
                 gap: 10,
                 padding: "8px 18px",
@@ -108,7 +108,7 @@ export default async function Image({
           )}
           <div
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
               padding: "8px 18px",
               borderRadius: 9999,
@@ -125,7 +125,7 @@ export default async function Image({
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", zIndex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <div
             style={{
               fontSize: 78,
@@ -164,7 +164,6 @@ export default async function Image({
             justifyContent: "flex-end",
             color: "rgba(245,241,232,0.45)",
             fontSize: 22,
-            zIndex: 1,
           }}
         >
           indiecomicslive.com

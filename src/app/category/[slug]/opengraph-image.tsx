@@ -45,10 +45,10 @@ export default async function Image({
           }}
         />
 
-        <div style={{ display: "flex", zIndex: 1 }}>
+        <div style={{ display: "flex" }}>
           <div
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
               padding: "8px 18px",
               borderRadius: 9999,
@@ -70,7 +70,6 @@ export default async function Image({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            zIndex: 1,
             gap: 16,
           }}
         >
@@ -96,7 +95,6 @@ export default async function Image({
             justifyContent: "space-between",
             color: "rgba(245,241,232,0.5)",
             fontSize: 22,
-            zIndex: 1,
           }}
         >
           <span>indiecomicslive.com/category/{params.slug}</span>

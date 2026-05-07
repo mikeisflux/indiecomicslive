@@ -35,7 +35,7 @@ export default async function Image() {
         />
         <div
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
             gap: 12,
             padding: "8px 18px",
@@ -47,7 +47,6 @@ export default async function Image() {
             letterSpacing: 4,
             textTransform: "uppercase",
             fontWeight: 700,
-            zIndex: 1,
             width: "fit-content",
           }}
         >
@@ -63,7 +62,7 @@ export default async function Image() {
           Live · auctions · drops
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", zIndex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <div
             style={{
               fontSize: 96,
@@ -96,7 +95,6 @@ export default async function Image() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            zIndex: 1,
             color: "rgba(245,241,232,0.5)",
             fontSize: 24,
           }}
