@@ -25,16 +25,25 @@ export async function generateMetadata({
   if (!show) return { title: "Show not found" };
 
   const liveSuffix = show.status === "live" ? " · Live now" : "";
+  const description =
+    show.description ??
+    "Live auction on Indie Comics Live, the adult-friendly Whatnot alternative for comics and cards.";
+  // No `images` set here — Next picks up /s/[id]/opengraph-image.tsx
+  // automatically and uses it for og:image + twitter:image.
   return {
     title: `${show.title}${liveSuffix} — Indie Comics Live`,
-    description:
-      show.description ??
-      "Live auction on Indie Comics Live, the adult-friendly Whatnot alternative for comics and cards.",
+    description,
+    alternates: { canonical: `/s/${id}` },
     openGraph: {
       title: `${show.title}${liveSuffix}`,
-      description: show.description ?? undefined,
-      images: show.coverImageUrl ? [{ url: show.coverImageUrl }] : undefined,
+      description,
       type: "video.other",
+      url: `/s/${id}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${show.title}${liveSuffix}`,
+      description,
     },
   };
 }

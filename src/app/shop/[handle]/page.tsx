@@ -26,10 +26,23 @@ export async function generateMetadata({
   });
   if (!seller) return { title: "Shop not found" };
   const display = seller.name ?? `@${seller.handle}`;
+  const description =
+    seller.bio ?? `Shop indie comics, art, and trading cards from ${display}.`;
   return {
     title: `${display}'s shop — Indie Comics Live`,
-    description: seller.bio ?? `Shop indie comics, art, and trading cards from ${display}.`,
+    description,
     alternates: { canonical: `/shop/${seller.handle}` },
+    openGraph: {
+      title: `${display}'s shop`,
+      description,
+      type: "profile",
+      url: `/shop/${seller.handle}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${display}'s shop on Indie Comics Live`,
+      description,
+    },
   };
 }
 
