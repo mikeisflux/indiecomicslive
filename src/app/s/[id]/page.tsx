@@ -80,13 +80,50 @@ export default async function ShowPage({
     ? show.lots.find((l) => l.id === show.pinnedLotId) ?? null
     : null;
 
+  // Stats for the seller header card overlay (rating + days-since +
+  // shop item count + follower toggle state).
+  const [reviewAgg, lastShow, shopCount] = await Promise.all([
+    prisma.review.aggregate({
+      where: { sellerId: show.sellerId },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+    prisma.show.findFirst({
+      where: {
+        sellerId: show.sellerId,
+        id: { not: show.id },
+        status: { in: ["live", "ended"] },
+      },
+      orderBy: { startedAt: "desc" },
+      select: { startedAt: true, endedAt: true, createdAt: true },
+    }),
+    prisma.lot.count({
+      where: {
+        sellerId: show.sellerId,
+        showId: null,
+        kind: { in: ["buy_now", "mystery"] },
+        inventoryCount: { gt: 0 },
+        status: { not: "unsold" },
+      },
+    }),
+  ]);
+  const refTime =
+    lastShow?.startedAt ?? lastShow?.endedAt ?? lastShow?.createdAt ?? null;
+  const daysSinceLastShow = refTime
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - refTime.getTime()) / (1000 * 60 * 60 * 24)),
+      )
+    : null;
+
   // Is the current viewer already watching this show? Are they the
-  // host or one of the show's moderators?
+  // host or one of the show's moderators? Are they following the seller?
   let isWatching = false;
   let canModerate = false;
+  let isFollowing = false;
   const session = await auth();
   if (session?.user?.id) {
-    const [watch, mod] = await Promise.all([
+    const [watch, mod, follow] = await Promise.all([
       prisma.watchedShow.findUnique({
         where: {
           userId_showId: { userId: session.user.id, showId: show.id },
@@ -99,9 +136,21 @@ export default async function ShowPage({
         },
         select: { userId: true },
       }),
+      session.user.id === show.sellerId
+        ? Promise.resolve(null)
+        : prisma.follow.findUnique({
+            where: {
+              followerId_sellerId: {
+                followerId: session.user.id,
+                sellerId: show.sellerId,
+              },
+            },
+            select: { followerId: true },
+          }),
     ]);
     isWatching = !!watch;
     canModerate = !!mod || show.sellerId === session.user.id;
+    isFollowing = !!follow;
   }
 
   // Replay URL + chapter markers. Only resolved when the show has
@@ -149,6 +198,13 @@ export default async function ShowPage({
           label: string;
         }>),
         isWatching,
+        sellerStats: {
+          reviewAvg: reviewAgg._avg.rating ?? null,
+          reviewCount: reviewAgg._count._all,
+          daysSinceLastShow,
+          shopItemCount: shopCount,
+          isFollowing,
+        },
       }}
       seller={show.seller}
       liveLot={liveLot}

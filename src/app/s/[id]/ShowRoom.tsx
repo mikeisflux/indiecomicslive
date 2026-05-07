@@ -11,6 +11,9 @@ import WinnerReveal, { type WinnerTrigger } from "@/components/WinnerReveal";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import SlideToBid from "@/components/SlideToBid";
 import TipButton from "@/components/TipButton";
+import ShowHeaderCard from "@/components/ShowHeaderCard";
+import ShowSideRail from "@/components/ShowSideRail";
+import GiveawayEntriesPill from "@/components/GiveawayEntriesPill";
 import RecordingPlayer from "./RecordingPlayer";
 
 interface TipBlast {
@@ -53,8 +56,16 @@ type Props = {
     chatOverlayEnabled: boolean;
     extraCams: { id: string; label: string }[];
     isWatching: boolean;
+    sellerStats: {
+      reviewAvg: number | null;
+      reviewCount: number;
+      daysSinceLastShow: number | null;
+      shopItemCount: number;
+      isFollowing: boolean;
+    };
   };
   seller: {
+    id: string;
     handle: string | null;
     name: string | null;
     image: string | null;
@@ -290,6 +301,27 @@ export default function ShowRoom({
           />
         )}
         <StreamOverlay liveLot={lot} pinnedLot={pinnedLot} />
+        {seller && (
+          <ShowHeaderCard
+            seller={{
+              id: seller.id,
+              handle: seller.handle,
+              name: seller.name,
+              image: seller.image,
+            }}
+            reviewAvg={show.sellerStats.reviewAvg}
+            reviewCount={show.sellerStats.reviewCount}
+            daysSinceLastShow={show.sellerStats.daysSinceLastShow}
+            initialFollowing={show.sellerStats.isFollowing}
+            signedIn={signedIn}
+          />
+        )}
+        <GiveawayEntriesPill showId={show.id} />
+        <ShowSideRail
+          showId={show.id}
+          sellerHandle={seller?.handle ?? null}
+          shopBadgeCount={show.sellerStats.shopItemCount}
+        />
         <ReactionLayer reactions={reactions} />
         <ReactionBar onTap={sendReaction} />
         <VictoryBurst trigger={victoryAt} />
