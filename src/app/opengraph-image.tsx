@@ -46,8 +46,8 @@ export default async function Image() {
             fontSize: 22,
             letterSpacing: 4,
             textTransform: "uppercase",
+            alignSelf: "flex-start",
             fontWeight: 700,
-            width: "fit-content",
           }}
         >
           <div
