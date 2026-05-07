@@ -119,6 +119,9 @@ export default function AccountMenu({
                 <MenuLink href="/feed" onClick={close}>
                   Your feed
                 </MenuLink>
+                <MenuLink href="/account/following" onClick={close}>
+                  Following
+                </MenuLink>
                 <MenuLink href="/account/help" onClick={close}>
                   Help · tickets
                 </MenuLink>

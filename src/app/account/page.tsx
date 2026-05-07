@@ -59,7 +59,6 @@ export default async function AccountPage() {
         <SubLink href="/account/payment-method" label="Payment method" />
         <SubLink href="/account/addresses" label="Shipping addresses" />
         <SubLink href="/account/notifications" label="Notifications" />
-        <SubLink href="/account/following" label="Following" />
         <SubLink href="/account/saved-searches" label="Saved searches" />
         <SubLink href="/account/security" label="Security · 2FA" />
         {isApprovedSeller && (
